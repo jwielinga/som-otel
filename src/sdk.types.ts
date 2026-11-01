@@ -16,6 +16,13 @@ export type TraceContext = {
 
 export type TraceContextProvider = () => TraceContext | undefined
 
+// Identifies a span; assignable to TraceContext.
+export type SpanContext = {
+  traceId: string
+  spanId: string
+  traceFlags: number
+}
+
 // Trace fields come together or not at all; without them the traceContext provider applies.
 export type LogOptions = { eventName?: string } & (
   TraceContext | { traceId?: never; spanId?: never; traceFlags?: never }
@@ -84,4 +91,9 @@ export type SomLoggerOptions = {
   limits?: SomLoggerLimits
   traceContext?: TraceContextProvider
   onDiagnostic?: (event: SomDiagnosticEvent) => void
+}
+
+export type SomOptions = SomLoggerOptions & {
+  // Full traces URL. Default: `endpoint` with its trailing /logs replaced by /traces.
+  tracesEndpoint?: string
 }

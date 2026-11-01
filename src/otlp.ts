@@ -6,6 +6,7 @@ import {
   type OTelJsonKeyValue,
   type OTelJsonLogRecord,
   type OTelJsonLogsData,
+  type OTelJsonResource,
   type OTelJsonResourceLogs,
   type OTelLogRecord,
 } from './otel.types.js'
@@ -204,7 +205,7 @@ function encodeContainer(
   }
 }
 
-function encodeAttributes(
+export function encodeAttributes(
   attributes: LogAttributes,
   limits: OtlpLimits,
 ): { values: OTelJsonKeyValue[]; dropped: number } {
@@ -298,7 +299,7 @@ export function encodeOtlpLogRecord(
   }
 }
 
-function encodeScope(
+export function encodeScope(
   scope: SomLoggerScope | undefined,
 ): OTelJsonInstrumentationScope {
   const encoded: OTelJsonInstrumentationScope = {
@@ -314,16 +315,22 @@ function encodeScope(
   return encoded
 }
 
+export function encodeResource(
+  resourceAttributes: LogAttributes,
+): OTelJsonResource {
+  return {
+    attributes: encodeAttributes(resourceAttributes, UNLIMITED_ATTRIBUTES)
+      .values,
+  }
+}
+
 export function createOtlpLogsRequest(
   resourceAttributes: LogAttributes,
   logRecords: readonly OtlpLogRecord[],
   options: OtlpRequestOptions = {},
 ): OTelJsonLogsData {
   const resourceLogs: OTelJsonResourceLogs = {
-    resource: {
-      attributes: encodeAttributes(resourceAttributes, UNLIMITED_ATTRIBUTES)
-        .values,
-    },
+    resource: encodeResource(resourceAttributes),
     scopeLogs: [
       {
         scope: encodeScope(options.scope),

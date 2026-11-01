@@ -3,41 +3,76 @@ export type PartialSuccess = {
   errorMessage?: string
 }
 
+export type TracePartialSuccess = {
+  rejectedSpans: number
+  errorMessage?: string
+}
+
 type JsonExportResponse = {
   partialSuccess?: {
     // OTLP/JSON encodes int64 as a string.
     rejectedLogRecords?: string | number
+    rejectedSpans?: string | number
     errorMessage?: string
   }
 }
 
-function toPartialSuccess(
+type RejectedKey = 'rejectedLogRecords' | 'rejectedSpans'
+
+type Rejection = { rejected: number; errorMessage: string | undefined }
+
+function toRejection(
   body: JsonExportResponse,
-): PartialSuccess | undefined {
+  key: RejectedKey,
+): Rejection | undefined {
   const partial = body.partialSuccess
   if (!partial) return undefined
 
-  const rejected = Number(partial.rejectedLogRecords ?? 0)
-  const rejectedLogRecords = Number.isFinite(rejected) ? rejected : 0
+  const count = Number(partial[key] ?? 0)
+  const rejected = Number.isFinite(count) ? count : 0
   const errorMessage = partial.errorMessage || undefined
 
-  return rejectedLogRecords > 0 || errorMessage
-    ? { rejectedLogRecords, errorMessage }
-    : undefined
+  return rejected > 0 || errorMessage ? { rejected, errorMessage } : undefined
 }
 
-// A 200 response can still report rejected records; clients must not retry them.
-export async function readPartialSuccess(
+// A 200 response can still report rejected items; clients must not retry them.
+async function readRejection(
   response: Response,
-): Promise<PartialSuccess | undefined> {
+  key: RejectedKey,
+): Promise<Rejection | undefined> {
   if (response.status !== 200) return undefined
   if (!response.headers.get('Content-Type')?.includes('json')) return undefined
 
   try {
-    return toPartialSuccess(
+    return toRejection(
       JSON.parse(await response.text()) as JsonExportResponse,
+      key,
     )
   } catch {
     return undefined
   }
+}
+
+export async function readPartialSuccess(
+  response: Response,
+): Promise<PartialSuccess | undefined> {
+  const rejection = await readRejection(response, 'rejectedLogRecords')
+  return (
+    rejection && {
+      rejectedLogRecords: rejection.rejected,
+      errorMessage: rejection.errorMessage,
+    }
+  )
+}
+
+export async function readTracePartialSuccess(
+  response: Response,
+): Promise<TracePartialSuccess | undefined> {
+  const rejection = await readRejection(response, 'rejectedSpans')
+  return (
+    rejection && {
+      rejectedSpans: rejection.rejected,
+      errorMessage: rejection.errorMessage,
+    }
+  )
 }
