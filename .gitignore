@@ -29,3 +29,5 @@ website/build
 website/.docusaurus
 
 .agents/skills/
+
+skills-lock.json
