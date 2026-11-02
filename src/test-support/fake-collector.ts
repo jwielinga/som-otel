@@ -1,5 +1,4 @@
-import type { OTelJsonSpan } from '../otel.types.js'
-import type { OtlpLogRecord } from '../otlp.js'
+import type { OTelJsonSpan, OtlpLogRecord } from '../types.js'
 
 type JsonAttribute = { key: string; value?: unknown }
 

@@ -1,5 +1,5 @@
-import { createSom } from '../sdk.js'
-import type { SomOptions } from '../sdk.types.js'
+import { createSom } from '../core/sdk.js'
+import type { SomOptions } from '../types.js'
 import { FakeCollector } from './fake-collector.js'
 
 // One-span batches and no resource detection, so each test sees exactly what it sends.

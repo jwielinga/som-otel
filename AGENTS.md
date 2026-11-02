@@ -9,6 +9,8 @@ The package is prepared for public npm releases as `som-otel`. Releases run thro
 ## Implementation
 
 - Public exports live in `src/index.ts`.
+- `src/` layout: `core/` (`createSom`, `Som`), `logs/`, `traces/`, `otlp/` (encoding, partial success), `transport/` (transport, exporter, batcher, retry), `utils/`, `integration/` (cross-module tests), `test-support/`. Tests sit next to their source.
+- All types live in `src/types.ts`. Constants live in `<folder>/<folder>.constants.ts`; the `OTel*` const+type pairs stay together in `otlp/otlp.constants.ts`.
 - Keep the API focused on logs and traces; no metrics. Use the vocabulary in `GLOSSARY.md` and respect `docs/adr/`.
 - `createSom` returns `{ logger, tracer, flush, shutdown }` and `createSomLogger` stays logs-only. Both signals share one export pipeline (`OtlpTransport`, `LogBatcher`) with separate queues.
 - `SomLogger` batches records into OTLP/HTTP JSON requests, flushing at 20 records or after 5 seconds by default; `batch` options override these thresholds. Spans are queued when `span.end()` is called, and `end()` never throws.
