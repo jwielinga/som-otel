@@ -1,0 +1,3 @@
+# One `createSom` entry point for logs and traces
+
+Logs and spans share one configuration and delivery pipeline, so `createSom` returns a logger and a tracer together, and `createSomLogger` stays for logs-only users. The traces URL is derived from the logs `endpoint` (a trailing `/logs` becomes `/traces`) unless `tracesEndpoint` is set, and Som throws when it cannot derive one. We rejected separate factories because they would duplicate options, and a single base URL because the logs `endpoint` is already a full URL. There is deliberately no ambient active span, since browsers have no async context: parents and log correlation are passed explicitly (`parent`, `span`).

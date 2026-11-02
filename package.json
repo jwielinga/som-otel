@@ -1,7 +1,7 @@
 {
   "name": "som-otel",
   "version": "0.1.0",
-  "description": "Lightweight browser SDK for sending OpenTelemetry logs over OTLP/HTTP",
+  "description": "Lightweight browser SDK for sending OpenTelemetry logs and spans over OTLP/HTTP",
   "type": "module",
   "packageManager": "pnpm@8.6.12",
   "engines": {
