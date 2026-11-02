@@ -25,7 +25,7 @@ Run the complete quality suite before opening a pull request:
 pnpm check
 ```
 
-This runs formatting, lint, type checking, tests, and the production package build. Individual commands are available as `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`.
+This runs formatting, lint, type checking, tests, and the production package build. Individual commands are available as `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`. After a build, `pnpm pack:check` validates the packed package: publint, Are The Types Wrong, and a smoke test of the ES module, CommonJS, and IIFE builds. CI runs it in the Quality workflow.
 
 For documentation changes, edit Markdown or MDX under `docs/`. The Docusaurus app in `website/` renders those source files; do not edit generated output in `website/build/`. Install its dependencies and preview or validate the site with:
 

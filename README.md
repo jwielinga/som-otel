@@ -4,6 +4,8 @@ Som is a lightweight browser-side TypeScript npm package for sending OpenTelemet
 
 ## Quick Start
 
+Som ships ES module, CommonJS, and minified browser (IIFE, global `Som`) builds; the IIFE is served at the package's CDN entry (`https://cdn.jsdelivr.net/npm/som-otel`).
+
 ```ts
 import { createSomLogger } from 'som-otel'
 
