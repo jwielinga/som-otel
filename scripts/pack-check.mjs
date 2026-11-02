@@ -2,8 +2,9 @@ import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
+import { fileURLToPath } from 'node:url'
 
-const root = new URL('../', import.meta.url).pathname
+const root = fileURLToPath(new URL('../', import.meta.url))
 const require = createRequire(import.meta.url)
 
 function run(command, args) {

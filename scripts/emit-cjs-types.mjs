@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const typesDir = new URL('../dist/types/', import.meta.url).pathname
+const typesDir = fileURLToPath(new URL('../dist/types/', import.meta.url))
 
 // CommonJS consumers need `.d.cts` declarations whose relative imports resolve to `.d.cts` too.
 for (const name of readdirSync(typesDir)) {
