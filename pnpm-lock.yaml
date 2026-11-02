@@ -45,8 +45,8 @@ devDependencies:
     specifier: ^1.61.0
     version: 1.61.0(@types/react@19.3.0)(react@19.3.1)
   prettier:
-    specifier: ^3.9.9
-    version: 3.9.9
+    specifier: ^3.9.10
+    version: 3.9.10
   publint:
     specifier: ^0.3.25
     version: 0.3.25
@@ -3426,8 +3426,8 @@ packages:
     engines: {node: '>= 0.8.0'}
     dev: true
 
-  /prettier@3.9.9:
-    resolution: {integrity: sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg==}
+  /prettier@3.9.10:
+    resolution: {integrity: sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==}
     engines: {node: '>=14'}
     hasBin: true
     dev: true

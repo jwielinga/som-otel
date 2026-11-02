@@ -78,7 +78,7 @@
     "clsx": "^2.1.1",
     "eslint": "^10.11.0",
     "lucide-react": "^1.61.0",
-    "prettier": "^3.9.9",
+    "prettier": "^3.9.10",
     "publint": "^0.3.25",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
