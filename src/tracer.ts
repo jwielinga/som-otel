@@ -54,6 +54,7 @@ export class SomTracer {
   private readonly limits: OtlpLimits
   private readonly onError: ((error: unknown) => void) | undefined
   private readonly onShutdown: (() => void) | undefined
+  private isShutdown = false
 
   constructor(batcher: LogBatcher<OtlpSpan>, options: SomTracerInit = {}) {
     this.batcher = batcher
@@ -81,7 +82,7 @@ export class SomTracer {
       },
       parentSpanId: parent?.spanId,
       // The parent's sampling decision wins; unsampled spans still carry the trace on.
-      recording: (traceFlags & SAMPLED_FLAG) !== 0,
+      recording: !this.isShutdown && (traceFlags & SAMPLED_FLAG) !== 0,
       startTimeUnixNano: toUnixNano(options.startTime),
       attributes: options.attributes,
       links: options.links,
@@ -125,6 +126,7 @@ export class SomTracer {
   }
 
   shutdown(): Promise<void> {
+    this.isShutdown = true
     this.onShutdown?.()
     return this.batcher.shutdown()
   }

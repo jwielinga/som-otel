@@ -11,7 +11,7 @@ import {
   statusResponse,
   type Script,
 } from './test-support/fake-collector.js'
-import { stubFetchKeepalive } from './test-support/keepalive.js'
+import { stubPage } from './test-support/page.js'
 import { traceContextFromApi } from './trace-context.js'
 
 // Every test builds the SDK through createSomLogger and observes it only via the collector.
@@ -44,45 +44,6 @@ function createLogger(
 
 function attribute(record: OtlpLogRecord | undefined, key: string) {
   return record?.attributes?.find((entry) => entry.key === key)?.value
-}
-
-// Page events and fetch keepalive support: all the page-level state the SDK reads.
-function stubPage(options: { keepaliveSupported: boolean }) {
-  const windowEvents = new EventTarget()
-  const documentEvents = new EventTarget()
-  let listeners = 0
-
-  const track = (target: EventTarget) => ({
-    add: (type: string, listener: EventListener) => {
-      listeners++
-      target.addEventListener(type, listener)
-    },
-    remove: (type: string, listener: EventListener) => {
-      listeners--
-      target.removeEventListener(type, listener)
-    },
-  })
-  const windowTracking = track(windowEvents)
-  const documentTracking = track(documentEvents)
-  const documentStub = {
-    visibilityState: 'visible',
-    addEventListener: documentTracking.add,
-    removeEventListener: documentTracking.remove,
-  }
-
-  vi.stubGlobal('addEventListener', windowTracking.add)
-  vi.stubGlobal('removeEventListener', windowTracking.remove)
-  vi.stubGlobal('document', documentStub)
-  stubFetchKeepalive(options.keepaliveSupported)
-
-  return {
-    pagehide: () => windowEvents.dispatchEvent(new Event('pagehide')),
-    setVisibility: (state: 'visible' | 'hidden') => {
-      documentStub.visibilityState = state
-      documentEvents.dispatchEvent(new Event('visibilitychange'))
-    },
-    listenerCount: () => listeners,
-  }
 }
 
 const retryableFailures: Array<[string, Script]> = [

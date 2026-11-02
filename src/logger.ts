@@ -91,8 +91,11 @@ export class SomLogger {
   }
 
   private resolveExtras(options: LogOptions | undefined): OtlpRecordExtras {
-    const trace =
-      options?.traceId === undefined ? this.traceContext?.() : options
+    const trace = options?.span
+      ? options.span.spanContext()
+      : options?.traceId === undefined
+        ? this.traceContext?.()
+        : options
 
     return {
       traceId: trace?.traceId,

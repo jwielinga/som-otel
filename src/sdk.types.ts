@@ -50,8 +50,11 @@ export type SpanOptions = {
 }
 
 // Trace fields come together or not at all; without them the traceContext provider applies.
+// `span` is shorthand for the span's own trace fields and cannot be combined with them.
+type NoTraceFields = { traceId?: never; spanId?: never; traceFlags?: never }
+
 export type LogOptions = { eventName?: string } & (
-  TraceContext | { traceId?: never; spanId?: never; traceFlags?: never }
+  (TraceContext & { span?: never }) | (NoTraceFields & { span?: Span })
 )
 
 export type SomLoggerBatchOptions = {
