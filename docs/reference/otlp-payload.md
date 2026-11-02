@@ -81,3 +81,68 @@ Som sends:
 ## Partial success responses
 
 A `200` JSON response can carry `{"partialSuccess": {"rejectedLogRecords": "2", "errorMessage": "…"}}`. Som surfaces it as a [`partial-success` diagnostic](../guides/diagnostics.md).
+
+## Traces
+
+Spans use the same transport and encoding rules, posted to the traces endpoint as an OTLP/JSON `ExportTraceServiceRequest` with one `resourceSpans` entry and one `scopeSpans` entry. Every span of the batch is in `spans`.
+
+```ts
+const { tracer } = createSom({
+  endpoint: 'https://collector.example.com/v1/logs',
+  serviceName: 'storefront',
+  detectResource: false,
+})
+
+tracer
+  .startSpan('GET /cart', { kind: 'client' })
+  .setAttribute('cart.items', 3)
+  .end()
+```
+
+Som sends it to `https://collector.example.com/v1/traces`:
+
+```json
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "storefront" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "som" },
+          "spans": [
+            {
+              "traceId": "5b8efff798038103d269b633813fc60c",
+              "spanId": "eee19b7ec3c1b174",
+              "flags": 1,
+              "name": "GET /cart",
+              "kind": 3,
+              "startTimeUnixNano": "1791201600000000000",
+              "endTimeUnixNano": "1791201600120000000",
+              "attributes": [
+                { "key": "cart.items", "value": { "doubleValue": 3 } }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Item           | Encoding                                                                                              |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| Ids            | `traceId` is 32 and `spanId` 16 lowercase hex characters, never all zeros.                            |
+| `parentSpanId` | Present only for child spans.                                                                         |
+| `flags`        | The W3C trace flags, `1` when sampled.                                                                |
+| `kind`         | `1` internal, `2` server, `3` client, `4` producer, `5` consumer.                                     |
+| `status`       | Omitted when unset. `{ "code": 1 }` is ok, `{ "code": 2, "message": "…" }` is error.                  |
+| Events         | `events[]` of `{ timeUnixNano, name, attributes?, droppedAttributesCount? }`.                         |
+| Links          | `links[]` of `{ traceId, spanId, flags?, attributes?, droppedAttributesCount? }`.                     |
+| Dropped counts | `droppedAttributesCount`, `droppedEventsCount`, and `droppedLinksCount`, only when greater than zero. |
+
+A `200` response can carry `{"partialSuccess": {"rejectedSpans": "2", "errorMessage": "…"}}`, which becomes a `partial-success` diagnostic with `signal: 'traces'`.

@@ -41,6 +41,20 @@ Som trusts the types and does not validate id formats. Pass lowercase hex string
 
 :::
 
+## From a span
+
+When you create spans with Som's [tracer](./tracing.md), pass the span itself. Som copies its `traceId`, `spanId`, and `traceFlags` into the record:
+
+```ts
+const { logger, tracer } = createSom({/* ... */})
+
+await tracer.trace('checkout', async (span) => {
+  await logger.info('Charging card', { orderId: 'order-42' }, { span })
+})
+```
+
+`span` cannot be combined with explicit `traceId`, `spanId`, or `traceFlags`; TypeScript rejects it. A span that is not recording still correlates, and its `traceFlags` is sent as the record `flags`.
+
 ## Automatic correlation with a provider
 
 Set `traceContext` to attach the active trace to **every** log automatically. It is a function that returns `{ traceId, spanId, traceFlags? }`, or `undefined` when there is no active trace:
@@ -58,7 +72,7 @@ const logger = createSomLogger({
 })
 ```
 
-Som calls the provider each time it builds a record. Explicit trace fields on a call always win over the provider, and a provider is skipped when an explicit `traceId` is given.
+Som calls the provider each time it builds a record. Explicit trace fields or a `span` on a call always win over the provider, and a provider is skipped when an explicit `traceId` is given.
 
 ### With `@opentelemetry/api`
 

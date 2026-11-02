@@ -5,7 +5,7 @@ title: Diagnostics
 
 # Diagnostics
 
-Most failures happen in the background, after your log call has already returned: a batch fails to export, the queue overflows, the collector rejects part of a request. Log promises report some of these, but a fire-and-forget call has nobody listening. `onDiagnostic` gives you one place to observe them all.
+Most failures happen in the background, after your log call has already returned: a batch fails to export, the queue overflows, the collector rejects part of a request. Log promises report some of these, and span export failures have no promise at all, because `span.end()` returns nothing. `onDiagnostic` gives you one place to observe them all, for logs and spans.
 
 ```ts
 const logger = createSomLogger({
@@ -14,33 +14,40 @@ const logger = createSomLogger({
   onDiagnostic(event) {
     switch (event.type) {
       case 'export-failed':
-        console.warn(`Lost ${event.recordCount} log records`, event.error)
+        console.warn(
+          `Lost ${event.recordCount} ${event.signal} items`,
+          event.error,
+        )
         break
       case 'partial-success':
         console.warn(
-          `${event.rejectedLogRecords} records rejected`,
+          event.signal === 'logs'
+            ? `${event.rejectedLogRecords} records rejected`
+            : `${event.rejectedSpans} spans rejected`,
           event.errorMessage,
         )
         break
       case 'records-dropped':
-        console.warn(`Queue full, ${event.totalDropped} records dropped so far`)
+        console.warn(
+          `Queue full, ${event.totalDropped} ${event.signal} dropped so far`,
+        )
         break
     }
   },
 })
 ```
 
-`SomDiagnosticEvent` is a discriminated union, so TypeScript narrows each event by its `type`.
+`SomDiagnosticEvent` is a discriminated union, so TypeScript narrows each event by its `type`. Every event has a `signal`, `'logs'` or `'traces'`. `partial-success` narrows further by `signal`.
 
 ## Events
 
-| `type`            | When                                                        | Fields                                    |
-| ----------------- | ----------------------------------------------------------- | ----------------------------------------- |
-| `export-failed`   | A batch could not be exported, after all retries.           | `error`, `recordCount`                    |
-| `partial-success` | The collector accepted a request but rejected some records. | `rejectedLogRecords`, `errorMessage?`     |
-| `records-dropped` | The queue was full and a record was dropped.                | `reason` (`'queue-full'`), `totalDropped` |
+| `type`            | When                                                      | Fields                                                                                 |
+| ----------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `export-failed`   | A batch could not be exported, after all retries.         | `signal`, `error`, `recordCount`                                                       |
+| `partial-success` | The collector accepted a request but rejected some items. | `signal`, `errorMessage?`, and `rejectedLogRecords` (logs) or `rejectedSpans` (traces) |
+| `records-dropped` | The queue was full and an item was dropped.               | `signal`, `reason` (`'queue-full'`), `totalDropped`                                    |
 
-`export-failed` fires for each failed batch, including page-unload sends. `records-dropped` fires once per dropped record, with a running total.
+`export-failed` fires for each failed batch, including page-unload sends, and also when a span cannot be encoded (`recordCount` is `1`). `records-dropped` fires once per dropped item, with a running total for that signal.
 
 ## Safe by design
 
@@ -49,7 +56,7 @@ const logger = createSomLogger({
 
 ## Other signals
 
-- `logger.droppedRecordCount` returns the number of dropped records at any time.
+- `logger.droppedRecordCount` and `tracer.droppedSpanCount` return the number of dropped items at any time.
 - Log promises reject for failed exports. See [Writing logs](./writing-logs.md#promises-and-failures).
 
 ## Development logging

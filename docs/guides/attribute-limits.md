@@ -39,6 +39,17 @@ The **body** is not truncated.
 
 Nested objects and arrays count toward `maxValueDepth`. Beyond it, the value is replaced with `[MaxDepthExceeded]`. A reference back to an object that is already being encoded is replaced with `[Circular]`. The same object appearing twice in different places is fine; only true cycles are replaced.
 
+## Spans
+
+With `createSom()`, the same limits apply to span attributes, and to the attributes of each span event and link. Two more limits are specific to spans:
+
+| Option            | Default | What happens when exceeded                                    |
+| ----------------- | ------- | ------------------------------------------------------------- |
+| `eventCountLimit` | `128`   | Extra events are dropped and counted in `droppedEventsCount`. |
+| `linkCountLimit`  | `128`   | Extra links are dropped and counted in `droppedLinksCount`.   |
+
+Setting an attribute that already exists never counts against the limit. See [Tracing](./tracing.md#limits).
+
 ```ts
 const user: Record<string, unknown> = { name: 'Ada' }
 user.self = user
