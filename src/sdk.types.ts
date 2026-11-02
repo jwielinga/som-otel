@@ -1,4 +1,5 @@
 import type { OTelAnyValue } from './otel.types.js'
+import type { Span } from './span.js'
 
 export type LogSeverity = 'trace' | 'debug' | 'info' | 'warn' | 'error'
 
@@ -32,10 +33,18 @@ export type SpanTime = Date | number | bigint
 // Unset is the default and cannot be set; `ok` is final and drops the message.
 export type SpanStatus = { code: 'ok' | 'error'; message?: string }
 
+export type SpanLink = {
+  context: TraceContext
+  attributes?: LogAttributes
+}
+
 export type SpanOptions = {
   // Default 'internal'.
   kind?: SpanKind
+  // Continues the parent's trace and sampling decision. Default: a new root span.
+  parent?: Span | TraceContext
   attributes?: LogAttributes
+  links?: readonly SpanLink[]
   // Default now.
   startTime?: SpanTime
 }
@@ -75,6 +84,10 @@ export type SomLoggerLimits = {
   attributeValueLengthLimit?: number
   // Default 20. Deeper nested values are replaced with a placeholder string.
   maxValueDepth?: number
+  // Default 128. Spans only: excess events are dropped and counted in droppedEventsCount.
+  eventCountLimit?: number
+  // Default 128. Spans only: excess links are dropped and counted in droppedLinksCount.
+  linkCountLimit?: number
 }
 
 export type SomDiagnosticEvent =

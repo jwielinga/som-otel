@@ -46,6 +46,8 @@ export const DEFAULT_LIMITS: OtlpLimits = {
   attributeCountLimit: 128,
   attributeValueLengthLimit: Infinity,
   maxValueDepth: 20,
+  eventCountLimit: 128,
+  linkCountLimit: 128,
 }
 
 // Resource and scope attributes are developer-supplied, so only the depth guard applies.
@@ -73,6 +75,8 @@ export function resolveLimits(limits: SomLoggerLimits = {}): OtlpLimits {
       limits.attributeValueLengthLimit ??
       DEFAULT_LIMITS.attributeValueLengthLimit,
     maxValueDepth: limits.maxValueDepth ?? DEFAULT_LIMITS.maxValueDepth,
+    eventCountLimit: limits.eventCountLimit ?? DEFAULT_LIMITS.eventCountLimit,
+    linkCountLimit: limits.linkCountLimit ?? DEFAULT_LIMITS.linkCountLimit,
   }
 }
 

@@ -4,6 +4,7 @@ import {
   type OTelJsonResourceSpans,
   type OTelJsonSpan,
   type OTelJsonSpanEvent,
+  type OTelJsonSpanLink,
   type OTelJsonStatus,
   type OTelJsonTracesData,
 } from './otel.types.js'
@@ -15,8 +16,10 @@ import {
   type OtlpLimits,
   type OtlpRequestOptions,
 } from './otlp.js'
-import type { LogAttributes, SpanStatus } from './sdk.types.js'
+import type { LogAttributes, SpanLink, SpanStatus } from './sdk.types.js'
 import type { SpanData, SpanEventData } from './span.js'
+
+const TRACE_FLAGS_MASK = 0xff
 
 export type OtlpSpan = OTelJsonSpan
 
@@ -29,11 +32,12 @@ type EncodedAttributes = {
 function encodeLimitedAttributes(
   attributes: LogAttributes,
   limits: OtlpLimits,
+  alreadyDropped = 0,
 ): EncodedAttributes {
   const { values, dropped } = encodeAttributes(attributes, limits)
   return {
     attributes: values.length > 0 ? values : undefined,
-    droppedAttributesCount: dropped || undefined,
+    droppedAttributesCount: dropped + alreadyDropped || undefined,
   }
 }
 
@@ -45,6 +49,16 @@ function encodeEvent(
     timeUnixNano: event.timeUnixNano.toString(),
     name: event.name,
     ...encodeLimitedAttributes(event.attributes, limits),
+  }
+}
+
+function encodeLink(link: SpanLink, limits: OtlpLimits): OTelJsonSpanLink {
+  const { traceId, spanId, traceFlags } = link.context
+  return {
+    traceId,
+    spanId,
+    flags: traceFlags === undefined ? undefined : traceFlags & TRACE_FLAGS_MASK,
+    ...encodeLimitedAttributes(link.attributes ?? {}, limits),
   }
 }
 
@@ -73,11 +87,21 @@ export function encodeOtlpSpan(
     kind: data.kind,
     startTimeUnixNano: data.startTimeUnixNano.toString(),
     endTimeUnixNano: data.endTimeUnixNano.toString(),
-    ...encodeLimitedAttributes(data.attributes, limits),
+    ...encodeLimitedAttributes(
+      data.attributes,
+      limits,
+      data.droppedAttributesCount,
+    ),
     events:
       data.events.length > 0
         ? data.events.map((event) => encodeEvent(event, limits))
         : undefined,
+    droppedEventsCount: data.droppedEventsCount || undefined,
+    links:
+      data.links.length > 0
+        ? data.links.map((link) => encodeLink(link, limits))
+        : undefined,
+    droppedLinksCount: data.droppedLinksCount || undefined,
     status: encodeStatus(data.status),
   }
 }

@@ -1,10 +1,11 @@
 import { toUnixNano } from './clock.js'
 import type { OTelSpanKind } from './otel.types.js'
-import { describeError } from './otlp.js'
+import { DEFAULT_LIMITS, describeError, type OtlpLimits } from './otlp.js'
 import type {
   LogAttributes,
   LogAttributeValue,
   SpanContext,
+  SpanLink,
   SpanStatus,
   SpanTime,
 } from './sdk.types.js'
@@ -24,9 +25,18 @@ export type SpanData = {
   startTimeUnixNano: bigint
   endTimeUnixNano: bigint
   attributes: LogAttributes
+  droppedAttributesCount: number
   events: SpanEventData[]
+  droppedEventsCount: number
+  links: SpanLink[]
+  droppedLinksCount: number
   status: SpanStatus | undefined
 }
+
+export type SpanLimits = Pick<
+  OtlpLimits,
+  'attributeCountLimit' | 'eventCountLimit' | 'linkCountLimit'
+>
 
 export type SpanInit = {
   name: string
@@ -35,6 +45,10 @@ export type SpanInit = {
   parentSpanId?: string
   startTimeUnixNano: bigint
   attributes?: LogAttributes
+  links?: readonly SpanLink[]
+  limits?: SpanLimits
+  // Default true; false makes every call a no-op and nothing is exported.
+  recording?: boolean
   onEnd: (data: SpanData) => void
 }
 
@@ -56,10 +70,16 @@ export class Span {
   private readonly parentSpanId: string | undefined
   private readonly startTimeUnixNano: bigint
   private readonly attributes = new Map<string, LogAttributeValue>()
+  private droppedAttributesCount = 0
   private readonly events: SpanEventData[] = []
+  private droppedEventsCount = 0
+  private readonly links: SpanLink[] = []
+  private droppedLinksCount = 0
+  private readonly limits: SpanLimits
   private status: SpanStatus | undefined
   private readonly onEnd: (data: SpanData) => void
-  private ended = false
+  // False once ended, and from the start for a span that is not sampled.
+  private recording: boolean
 
   constructor(init: SpanInit) {
     this.name = init.name
@@ -67,21 +87,33 @@ export class Span {
     this.context = init.context
     this.parentSpanId = init.parentSpanId
     this.startTimeUnixNano = init.startTimeUnixNano
+    this.limits = init.limits ?? DEFAULT_LIMITS
     this.onEnd = init.onEnd
+    this.recording = init.recording ?? true
     this.setAttributes(init.attributes ?? {})
+    for (const link of init.links ?? []) this.addLink(link)
   }
 
   spanContext(): SpanContext {
     return { ...this.context }
   }
 
-  // False once the span has ended.
   isRecording(): boolean {
-    return !this.ended
+    return this.recording
   }
 
+  // Updating an existing key never counts against the limit.
   setAttribute(key: string, value: LogAttributeValue): this {
-    if (!this.ended) this.attributes.set(key, value)
+    if (!this.recording) return this
+
+    if (
+      !this.attributes.has(key) &&
+      this.attributes.size >= this.limits.attributeCountLimit
+    ) {
+      this.droppedAttributesCount++
+    } else {
+      this.attributes.set(key, value)
+    }
     return this
   }
 
@@ -97,8 +129,23 @@ export class Span {
     attributes: LogAttributes = {},
     time?: SpanTime,
   ): this {
-    if (!this.ended) {
+    if (!this.recording) return this
+
+    if (this.events.length >= this.limits.eventCountLimit) {
+      this.droppedEventsCount++
+    } else {
       this.events.push({ name, timeUnixNano: toUnixNano(time), attributes })
+    }
+    return this
+  }
+
+  addLink(link: SpanLink): this {
+    if (!this.recording) return this
+
+    if (this.links.length >= this.limits.linkCountLimit) {
+      this.droppedLinksCount++
+    } else {
+      this.links.push(link)
     }
     return this
   }
@@ -118,7 +165,7 @@ export class Span {
 
   // `ok` is final, and the message only applies to `error`.
   setStatus(status: SpanStatus): this {
-    if (this.ended || this.status?.code === 'ok') return this
+    if (!this.recording || this.status?.code === 'ok') return this
 
     this.status =
       status.code === 'ok'
@@ -128,14 +175,14 @@ export class Span {
   }
 
   updateName(name: string): this {
-    if (!this.ended) this.name = name
+    if (this.recording) this.name = name
     return this
   }
 
   end(endTime?: SpanTime): void {
-    if (this.ended) return
+    if (!this.recording) return
     const endTimeUnixNano = toUnixNano(endTime)
-    this.ended = true
+    this.recording = false
 
     this.onEnd({
       name: this.name,
@@ -145,7 +192,11 @@ export class Span {
       startTimeUnixNano: this.startTimeUnixNano,
       endTimeUnixNano,
       attributes: Object.fromEntries(this.attributes),
+      droppedAttributesCount: this.droppedAttributesCount,
       events: this.events,
+      droppedEventsCount: this.droppedEventsCount,
+      links: this.links,
+      droppedLinksCount: this.droppedLinksCount,
       status: this.status,
     })
   }

@@ -23,6 +23,7 @@ export type {
   SomOptions,
   SpanContext,
   SpanKind,
+  SpanLink,
   SpanOptions,
   SpanStatus,
   SpanTime,
