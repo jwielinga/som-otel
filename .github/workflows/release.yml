@@ -37,7 +37,6 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: npm install --global npm@12.1.0
       - run: pnpm build
       - run: pnpm release
         env:
