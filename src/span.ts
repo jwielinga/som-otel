@@ -1,3 +1,4 @@
+import { CappedList, CappedMap } from './capped.js'
 import { toUnixNano } from './clock.js'
 import type { OTelSpanKind } from './otel.types.js'
 import { DEFAULT_LIMITS, describeError, type OtlpLimits } from './otlp.js'
@@ -52,7 +53,7 @@ export type SpanInit = {
   onEnd: (data: SpanData) => void
 }
 
-function describeException(error: Error | string): LogAttributes {
+export function describeException(error: Error | string): LogAttributes {
   if (typeof error === 'string') return { 'exception.message': error }
 
   const { type, message, stacktrace } = describeError(error)
@@ -63,31 +64,41 @@ function describeException(error: Error | string): LogAttributes {
   }
 }
 
+// `ok` is final, and the message only applies to `error`.
+export function nextStatus(
+  current: SpanStatus | undefined,
+  requested: SpanStatus,
+): SpanStatus | undefined {
+  if (current?.code === 'ok') return current
+  return requested.code === 'ok'
+    ? { code: 'ok' }
+    : { code: 'error', message: requested.message }
+}
+
 export class Span {
   private name: string
   private readonly kind: OTelSpanKind
   private readonly context: SpanContext
   private readonly parentSpanId: string | undefined
   private readonly startTimeUnixNano: bigint
-  private readonly attributes = new Map<string, LogAttributeValue>()
-  private droppedAttributesCount = 0
-  private readonly events: SpanEventData[] = []
-  private droppedEventsCount = 0
-  private readonly links: SpanLink[] = []
-  private droppedLinksCount = 0
-  private readonly limits: SpanLimits
+  private readonly attributes: CappedMap<LogAttributeValue>
+  private readonly events: CappedList<SpanEventData>
+  private readonly links: CappedList<SpanLink>
   private status: SpanStatus | undefined
   private readonly onEnd: (data: SpanData) => void
   // False once ended, and from the start for a span that is not sampled.
   private recording: boolean
 
   constructor(init: SpanInit) {
+    const limits = init.limits ?? DEFAULT_LIMITS
     this.name = init.name
     this.kind = init.kind
     this.context = init.context
     this.parentSpanId = init.parentSpanId
     this.startTimeUnixNano = init.startTimeUnixNano
-    this.limits = init.limits ?? DEFAULT_LIMITS
+    this.attributes = new CappedMap(limits.attributeCountLimit)
+    this.events = new CappedList(limits.eventCountLimit)
+    this.links = new CappedList(limits.linkCountLimit)
     this.onEnd = init.onEnd
     this.recording = init.recording ?? true
     this.setAttributes(init.attributes ?? {})
@@ -102,18 +113,8 @@ export class Span {
     return this.recording
   }
 
-  // Updating an existing key never counts against the limit.
   setAttribute(key: string, value: LogAttributeValue): this {
-    if (!this.recording) return this
-
-    if (
-      !this.attributes.has(key) &&
-      this.attributes.size >= this.limits.attributeCountLimit
-    ) {
-      this.droppedAttributesCount++
-    } else {
-      this.attributes.set(key, value)
-    }
+    if (this.recording) this.attributes.set(key, value)
     return this
   }
 
@@ -129,24 +130,14 @@ export class Span {
     attributes: LogAttributes = {},
     time?: SpanTime,
   ): this {
-    if (!this.recording) return this
-
-    if (this.events.length >= this.limits.eventCountLimit) {
-      this.droppedEventsCount++
-    } else {
-      this.events.push({ name, timeUnixNano: toUnixNano(time), attributes })
+    if (this.recording) {
+      this.events.add({ name, timeUnixNano: toUnixNano(time), attributes })
     }
     return this
   }
 
   addLink(link: SpanLink): this {
-    if (!this.recording) return this
-
-    if (this.links.length >= this.limits.linkCountLimit) {
-      this.droppedLinksCount++
-    } else {
-      this.links.push(link)
-    }
+    if (this.recording) this.links.add(link)
     return this
   }
 
@@ -163,14 +154,8 @@ export class Span {
     )
   }
 
-  // `ok` is final, and the message only applies to `error`.
   setStatus(status: SpanStatus): this {
-    if (!this.recording || this.status?.code === 'ok') return this
-
-    this.status =
-      status.code === 'ok'
-        ? { code: 'ok' }
-        : { code: 'error', message: status.message }
+    if (this.recording) this.status = nextStatus(this.status, status)
     return this
   }
 
@@ -191,12 +176,12 @@ export class Span {
       parentSpanId: this.parentSpanId,
       startTimeUnixNano: this.startTimeUnixNano,
       endTimeUnixNano,
-      attributes: Object.fromEntries(this.attributes),
-      droppedAttributesCount: this.droppedAttributesCount,
-      events: this.events,
-      droppedEventsCount: this.droppedEventsCount,
-      links: this.links,
-      droppedLinksCount: this.droppedLinksCount,
+      attributes: Object.fromEntries(this.attributes.entries),
+      droppedAttributesCount: this.attributes.droppedCount,
+      events: this.events.items,
+      droppedEventsCount: this.events.droppedCount,
+      links: this.links.items,
+      droppedLinksCount: this.links.droppedCount,
       status: this.status,
     })
   }

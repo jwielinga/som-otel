@@ -303,7 +303,7 @@ export function encodeOtlpLogRecord(
   }
 }
 
-export function encodeScope(
+function encodeScope(
   scope: SomLoggerScope | undefined,
 ): OTelJsonInstrumentationScope {
   const encoded: OTelJsonInstrumentationScope = {
@@ -319,12 +319,32 @@ export function encodeScope(
   return encoded
 }
 
-export function encodeResource(
+function withSchemaUrl(schemaUrl: string | undefined): { schemaUrl?: string } {
+  return schemaUrl === undefined ? {} : { schemaUrl }
+}
+
+// The resource part of a request, shared by every signal.
+export function resourceEnvelope(
   resourceAttributes: LogAttributes,
-): OTelJsonResource {
+  options: OtlpRequestOptions,
+): { resource: OTelJsonResource; schemaUrl?: string } {
   return {
-    attributes: encodeAttributes(resourceAttributes, UNLIMITED_ATTRIBUTES)
-      .values,
+    resource: {
+      attributes: encodeAttributes(resourceAttributes, UNLIMITED_ATTRIBUTES)
+        .values,
+    },
+    ...withSchemaUrl(options.resourceSchemaUrl),
+  }
+}
+
+// The scope part of a request, shared by every signal.
+export function scopeEnvelope(options: OtlpRequestOptions): {
+  scope: OTelJsonInstrumentationScope
+  schemaUrl?: string
+} {
+  return {
+    scope: encodeScope(options.scope),
+    ...withSchemaUrl(options.scope?.schemaUrl),
   }
 }
 
@@ -334,19 +354,8 @@ export function createOtlpLogsRequest(
   options: OtlpRequestOptions = {},
 ): OTelJsonLogsData {
   const resourceLogs: OTelJsonResourceLogs = {
-    resource: encodeResource(resourceAttributes),
-    scopeLogs: [
-      {
-        scope: encodeScope(options.scope),
-        logRecords: [...logRecords],
-        ...(options.scope?.schemaUrl === undefined
-          ? {}
-          : { schemaUrl: options.scope.schemaUrl }),
-      },
-    ],
-    ...(options.resourceSchemaUrl === undefined
-      ? {}
-      : { schemaUrl: options.resourceSchemaUrl }),
+    ...resourceEnvelope(resourceAttributes, options),
+    scopeLogs: [{ ...scopeEnvelope(options), logRecords: [...logRecords] }],
   }
 
   return { resourceLogs: [resourceLogs] }

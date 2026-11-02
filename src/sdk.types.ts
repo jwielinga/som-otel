@@ -18,11 +18,7 @@ export type TraceContext = {
 export type TraceContextProvider = () => TraceContext | undefined
 
 // Identifies a span; assignable to TraceContext.
-export type SpanContext = {
-  traceId: string
-  spanId: string
-  traceFlags: number
-}
+export type SpanContext = Required<TraceContext>
 
 export type SpanKind =
   'internal' | 'server' | 'client' | 'producer' | 'consumer'

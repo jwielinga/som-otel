@@ -1,4 +1,6 @@
-import type { SomLoggerBatchOptions } from './sdk.types.js'
+import { collectFailures, throwFailures } from './failures.js'
+import type { SomLoggerBatchOptions, SomSignal } from './sdk.types.js'
+import { SIGNAL_NAMES } from './signal.js'
 
 const DEFAULT_MAX_BATCH_SIZE = 20
 const DEFAULT_MAX_QUEUE_SIZE = 1_000
@@ -15,10 +17,8 @@ export type LogBatcherOptions<T> = SomLoggerBatchOptions & {
   // Used by flushOnUnload(); defaults to sendBatch.
   sendBatchOnUnload?: (items: readonly T[]) => Promise<void>
   onDropped?: (totalDropped: number) => void
-  // Name used in error messages. Default 'SomLogger'.
-  owner?: string
-  // OTLP signal used in error messages. Default 'log'.
-  signal?: 'log' | 'trace'
+  // Names the batcher in error messages. Default 'logs'.
+  signal?: SomSignal
 }
 
 export class LogBatcher<T> {
@@ -48,8 +48,9 @@ export class LogBatcher<T> {
     this.sendBatch = options.sendBatch
     this.sendBatchOnUnload = options.sendBatchOnUnload ?? options.sendBatch
     this.onDropped = options.onDropped
-    this.owner = options.owner ?? 'SomLogger'
-    this.aggregateMessage = `Multiple OTLP ${options.signal ?? 'log'} batches failed.`
+    const { owner, noun } = SIGNAL_NAMES[options.signal ?? 'logs']
+    this.owner = owner
+    this.aggregateMessage = `Multiple OTLP ${noun} batches failed.`
   }
 
   get droppedCount(): number {
@@ -144,12 +145,7 @@ export class LogBatcher<T> {
     }
 
     return Promise.allSettled(sends).then((results) => {
-      throwFailures(
-        results.flatMap((result) =>
-          result.status === 'rejected' ? [result.reason as unknown] : [],
-        ),
-        this.aggregateMessage,
-      )
+      throwFailures(collectFailures(results), this.aggregateMessage)
     })
   }
 
@@ -219,9 +215,4 @@ export class LogBatcher<T> {
 
     throwFailures(failures, this.aggregateMessage)
   }
-}
-
-function throwFailures(failures: unknown[], message: string): void {
-  if (failures.length === 1) throw failures[0]
-  if (failures.length > 1) throw new AggregateError(failures, message)
 }

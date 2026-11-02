@@ -6,6 +6,8 @@ import {
   type RetryPolicy,
 } from './retry.js'
 import { raceTimeout } from './timeout.js'
+import type { SomSignal } from './sdk.types.js'
+import { SIGNAL_NAMES } from './signal.js'
 
 // Browsers cap in-flight keepalive bodies at 64 KiB; stay below it.
 const KEEPALIVE_MAX_BODY_BYTES = 63 * 1024
@@ -17,12 +19,10 @@ type Payload = {
   contentEncoding?: 'gzip'
 }
 
-export type OtlpSignalName = 'log' | 'trace'
-
 export type OtlpTransportOptions<TItem, TPartial> = {
   endpoint: string
   // Names the signal in error messages.
-  signal: OtlpSignalName
+  signal: SomSignal
   encode: (items: readonly TItem[]) => string
   readPartialSuccess: (response: Response) => Promise<TPartial | undefined>
   headers?: Readonly<Record<string, string>>
@@ -84,7 +84,7 @@ function toExportError(error: unknown): OtlpExportError {
 // Signal-agnostic OTLP/HTTP delivery: compression, keepalive, timeout, retry, partial success.
 export class OtlpTransport<TItem, TPartial> {
   private readonly endpoint: string
-  private readonly signal: OtlpSignalName
+  private readonly noun: string
   private readonly encodeItems: OtlpTransportOptions<TItem, TPartial>['encode']
   private readonly readPartialSuccess: OtlpTransportOptions<
     TItem,
@@ -101,7 +101,7 @@ export class OtlpTransport<TItem, TPartial> {
 
   constructor(options: OtlpTransportOptions<TItem, TPartial>) {
     this.endpoint = options.endpoint
-    this.signal = options.signal
+    this.noun = SIGNAL_NAMES[options.signal].noun
     this.encodeItems = options.encode
     this.readPartialSuccess = options.readPartialSuccess
     this.headers = { ...options.headers }
@@ -198,7 +198,7 @@ export class OtlpTransport<TItem, TPartial> {
   private httpError(response: Response): OtlpExportError {
     const statusText = response.statusText ? ` ${response.statusText}` : ''
     return new OtlpExportError(
-      `OTLP ${this.signal} request failed: ${response.status}${statusText}`,
+      `OTLP ${this.noun} request failed: ${response.status}${statusText}`,
       {
         status: response.status,
         retryable: RETRYABLE_STATUSES.has(response.status),
@@ -235,7 +235,7 @@ export class OtlpTransport<TItem, TPartial> {
       this.timeoutMs,
       () =>
         new OtlpExportError(
-          `OTLP ${this.signal} request timed out after ${this.timeoutMs}ms`,
+          `OTLP ${this.noun} request timed out after ${this.timeoutMs}ms`,
           { retryable: true },
         ),
       () => controller.abort(),

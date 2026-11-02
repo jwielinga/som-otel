@@ -36,7 +36,7 @@ export class OtlpHttpExporter extends OtlpTransport<
 
     super({
       endpoint: options.endpoint,
-      signal: 'log',
+      signal: 'logs',
       encode: (records) =>
         JSON.stringify(
           createOtlpLogsRequest(

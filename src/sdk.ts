@@ -1,9 +1,11 @@
 import { LogBatcher } from './batcher.js'
+import { collectFailures } from './failures.js'
 import { isFetchKeepaliveSupported, OtlpHttpExporter } from './http-exporter.js'
 import { SomLogger } from './logger.js'
-import { resolveLimits, type OtlpLogRecord } from './otlp.js'
+import { resolveLimits, type OtlpLimits, type OtlpLogRecord } from './otlp.js'
 import { createOtlpTracesRequest, type OtlpSpan } from './otlp-trace.js'
 import { OtlpTransport } from './otlp-transport.js'
+import { flushOnPageUnload } from './page-unload.js'
 import {
   readTracePartialSuccess,
   type TracePartialSuccess,
@@ -15,8 +17,10 @@ import type {
   SomDiagnosticEvent,
   SomLoggerOptions,
   SomOptions,
+  SomSignal,
 } from './sdk.types.js'
 import { Som } from './som.js'
+import { resolveTracesEndpoint } from './traces-endpoint.js'
 import { SomTracer } from './tracer.js'
 
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -29,8 +33,6 @@ type BatchExporter<T> = {
   exportOnUnload(items: readonly T[]): Promise<void>
   splitForUnload(items: readonly T[]): T[][]
 }
-
-type Unloadable = { flushOnUnload(): Promise<void> }
 
 function createResourceAttributes(options: SomLoggerOptions): LogAttributes {
   return {
@@ -53,6 +55,7 @@ function createEmitter(options: SomLoggerOptions): Emit {
   }
 }
 
+// Delivery settings shared by every signal.
 function createTransportOptions(options: SomLoggerOptions) {
   const fetcher = options.fetcher ?? globalThis.fetch
   if (typeof fetcher !== 'function') {
@@ -71,16 +74,19 @@ function createTransportOptions(options: SomLoggerOptions) {
   }
 }
 
-function createExporter(
+function createRequestOptions(options: SomLoggerOptions) {
+  return { scope: options.scope, resourceSchemaUrl: options.resourceSchemaUrl }
+}
+
+function createLogExporter(
   options: SomLoggerOptions,
   emit: Emit,
 ): OtlpHttpExporter {
   return new OtlpHttpExporter({
     ...createTransportOptions(options),
+    ...createRequestOptions(options),
     endpoint: options.endpoint,
     resourceAttributes: createResourceAttributes(options),
-    scope: options.scope,
-    resourceSchemaUrl: options.resourceSchemaUrl,
     onPartialSuccess: ({ rejectedLogRecords, errorMessage }) =>
       emit({
         type: 'partial-success',
@@ -92,20 +98,16 @@ function createExporter(
 }
 
 function createTraceExporter(
-  options: SomLoggerOptions,
-  endpoint: string,
+  options: SomOptions,
   emit: Emit,
 ): OtlpTransport<OtlpSpan, TracePartialSuccess> {
   const resourceAttributes = createResourceAttributes(options)
-  const requestOptions = {
-    scope: options.scope,
-    resourceSchemaUrl: options.resourceSchemaUrl,
-  }
+  const requestOptions = createRequestOptions(options)
 
   return new OtlpTransport<OtlpSpan, TracePartialSuccess>({
     ...createTransportOptions(options),
-    endpoint,
-    signal: 'trace',
+    endpoint: resolveTracesEndpoint(options.endpoint, options.tracesEndpoint),
+    signal: 'traces',
     encode: (spans) =>
       JSON.stringify(
         createOtlpTracesRequest(resourceAttributes, spans, requestOptions),
@@ -121,33 +123,12 @@ function createTraceExporter(
   })
 }
 
-const TRACES_PATH = /^([^?#]*?)\/logs(\/?(?:[?#].*)?)$/
-
-// An explicit tracesEndpoint wins; otherwise the logs endpoint's trailing /logs becomes /traces.
-function resolveTracesEndpoint(options: SomOptions): string {
-  if (options.tracesEndpoint !== undefined) {
-    if (!options.tracesEndpoint.trim()) {
-      throw new TypeError('tracesEndpoint must be a non-empty string.')
-    }
-    return options.tracesEndpoint
-  }
-
-  const derived = options.endpoint.replace(TRACES_PATH, '$1/traces$2')
-  if (derived === options.endpoint) {
-    throw new TypeError(
-      'tracesEndpoint is required when endpoint does not end in "/logs".',
-    )
-  }
-  return derived
-}
-
 function createBatcher<T>(
   options: SomLoggerOptions,
   exporter: BatchExporter<T>,
   emit: Emit,
-  names: { owner: string; signal: 'log' | 'trace' },
+  signal: SomSignal,
 ): LogBatcher<T> {
-  const signal = names.signal === 'log' ? 'logs' : 'traces'
   const reportFailure = (items: readonly T[], error: unknown): never => {
     emit({ type: 'export-failed', signal, error, recordCount: items.length })
     throw error
@@ -155,7 +136,7 @@ function createBatcher<T>(
 
   return new LogBatcher<T>({
     ...options.batch,
-    ...names,
+    signal,
     sendBatch: (items) =>
       exporter
         .export(items)
@@ -172,8 +153,8 @@ function createBatcher<T>(
           ),
       )
 
-      const failure = results.find((result) => result.status === 'rejected')
-      if (failure) throw failure.reason as unknown
+      const failures = collectFailures(results)
+      if (failures.length > 0) throw failures[0]
     },
     onDropped: (totalDropped) =>
       emit({
@@ -189,78 +170,67 @@ function createLogBatcher(
   options: SomLoggerOptions,
   emit: Emit,
 ): LogBatcher<OtlpLogRecord> {
-  return createBatcher(options, createExporter(options, emit), emit, {
-    owner: 'SomLogger',
-    signal: 'log',
-  })
+  return createBatcher(options, createLogExporter(options, emit), emit, 'logs')
 }
 
 function createSpanBatcher(
   options: SomOptions,
   emit: Emit,
 ): LogBatcher<OtlpSpan> {
-  const exporter = createTraceExporter(
+  return createBatcher(
     options,
-    resolveTracesEndpoint(options),
+    createTraceExporter(options, emit),
     emit,
+    'traces',
   )
-  return createBatcher(options, exporter, emit, {
-    owner: 'SomTracer',
-    signal: 'trace',
+}
+
+function createLogger(
+  options: SomLoggerOptions,
+  batcher: LogBatcher<OtlpLogRecord>,
+  limits: OtlpLimits,
+  onShutdown?: () => void,
+): SomLogger {
+  return new SomLogger(batcher, {
+    limits,
+    traceContext: options.traceContext,
+    onShutdown,
   })
 }
 
-// Returns a function that removes the listeners again.
-function flushOnPageUnload(batchers: readonly Unloadable[]): () => void {
-  const flushOnPageHide = (): void => {
-    for (const batcher of batchers) {
-      void batcher.flushOnUnload().catch(() => undefined)
-    }
+function validateOptions(options: SomLoggerOptions): void {
+  if (!options.endpoint.trim()) {
+    throw new TypeError('endpoint must be a non-empty string.')
   }
-  const flushWhenHidden = (): void => {
-    if (document.visibilityState === 'hidden') flushOnPageHide()
-  }
-
-  globalThis.addEventListener?.('pagehide', flushOnPageHide)
-  if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', flushWhenHidden)
-  }
-
-  return () => {
-    globalThis.removeEventListener?.('pagehide', flushOnPageHide)
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', flushWhenHidden)
-    }
+  if (!options.serviceName.trim()) {
+    throw new TypeError('serviceName must be a non-empty string.')
   }
 }
 
 export function createSomLogger(options: SomLoggerOptions): SomLogger {
   validateOptions(options)
 
-  const emit = createEmitter(options)
-  const batcher = createLogBatcher(options, emit)
-
-  return new SomLogger(batcher, {
-    limits: resolveLimits(options.limits),
-    traceContext: options.traceContext,
-    onShutdown: flushOnPageUnload([batcher]),
-  })
+  const batcher = createLogBatcher(options, createEmitter(options))
+  return createLogger(
+    options,
+    batcher,
+    resolveLimits(options.limits),
+    flushOnPageUnload([batcher]),
+  )
 }
 
 export function createSom(options: SomOptions): Som {
   validateOptions(options)
 
   const emit = createEmitter(options)
+  const limits = resolveLimits(options.limits)
   const logBatcher = createLogBatcher(options, emit)
   const spanBatcher = createSpanBatcher(options, emit)
 
   return new Som(
-    new SomLogger(logBatcher, {
-      limits: resolveLimits(options.limits),
-      traceContext: options.traceContext,
-    }),
+    createLogger(options, logBatcher, limits),
     new SomTracer(spanBatcher, {
-      limits: resolveLimits(options.limits),
+      limits,
       onError: (error) =>
         emit({
           type: 'export-failed',
@@ -271,13 +241,4 @@ export function createSom(options: SomOptions): Som {
     }),
     flushOnPageUnload([logBatcher, spanBatcher]),
   )
-}
-
-function validateOptions(options: SomLoggerOptions): void {
-  if (!options.endpoint.trim()) {
-    throw new TypeError('endpoint must be a non-empty string.')
-  }
-  if (!options.serviceName.trim()) {
-    throw new TypeError('serviceName must be a non-empty string.')
-  }
 }

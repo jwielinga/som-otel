@@ -1,17 +1,13 @@
+import { collectFailures, throwFailures } from './failures.js'
 import type { SomLogger } from './logger.js'
 import type { SomTracer } from './tracer.js'
 
-// Settles every task, then reports the failures: one as is, several as an AggregateError.
+// Waits for every task, then reports all failures.
 async function settleAll(
   tasks: Array<Promise<void>>,
   message: string,
 ): Promise<void> {
-  const failures = (await Promise.allSettled(tasks)).flatMap((result) =>
-    result.status === 'rejected' ? [result.reason as unknown] : [],
-  )
-
-  if (failures.length === 1) throw failures[0]
-  if (failures.length > 1) throw new AggregateError(failures, message)
+  throwFailures(collectFailures(await Promise.allSettled(tasks)), message)
 }
 
 export class Som {

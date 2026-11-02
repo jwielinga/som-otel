@@ -11,8 +11,8 @@ import {
 import {
   DEFAULT_LIMITS,
   encodeAttributes,
-  encodeResource,
-  encodeScope,
+  resourceEnvelope,
+  scopeEnvelope,
   type OtlpLimits,
   type OtlpRequestOptions,
 } from './otlp.js'
@@ -23,25 +23,31 @@ const TRACE_FLAGS_MASK = 0xff
 
 export type OtlpSpan = OTelJsonSpan
 
-type EncodedAttributes = {
-  attributes: OTelJsonKeyValue[] | undefined
-  droppedAttributesCount: number | undefined
+// Empty lists and zero counts are omitted from the payload.
+function nonEmpty<T>(items: T[]): T[] | undefined {
+  return items.length > 0 ? items : undefined
 }
 
-// Empty lists and zero counts are omitted from the payload.
+function nonZero(count: number): number | undefined {
+  return count > 0 ? count : undefined
+}
+
 function encodeLimitedAttributes(
   attributes: LogAttributes,
   limits: OtlpLimits,
   alreadyDropped = 0,
-): EncodedAttributes {
+): {
+  attributes: OTelJsonKeyValue[] | undefined
+  droppedAttributesCount: number | undefined
+} {
   const { values, dropped } = encodeAttributes(attributes, limits)
   return {
-    attributes: values.length > 0 ? values : undefined,
-    droppedAttributesCount: dropped + alreadyDropped || undefined,
+    attributes: nonEmpty(values),
+    droppedAttributesCount: nonZero(dropped + alreadyDropped),
   }
 }
 
-function encodeEvent(
+export function encodeSpanEvent(
   event: SpanEventData,
   limits: OtlpLimits,
 ): OTelJsonSpanEvent {
@@ -52,7 +58,10 @@ function encodeEvent(
   }
 }
 
-function encodeLink(link: SpanLink, limits: OtlpLimits): OTelJsonSpanLink {
+export function encodeSpanLink(
+  link: SpanLink,
+  limits: OtlpLimits,
+): OTelJsonSpanLink {
   const { traceId, spanId, traceFlags } = link.context
   return {
     traceId,
@@ -62,7 +71,7 @@ function encodeLink(link: SpanLink, limits: OtlpLimits): OTelJsonSpanLink {
   }
 }
 
-function encodeStatus(
+export function encodeSpanStatus(
   status: SpanStatus | undefined,
 ): OTelJsonStatus | undefined {
   if (status === undefined) return undefined
@@ -92,17 +101,13 @@ export function encodeOtlpSpan(
       limits,
       data.droppedAttributesCount,
     ),
-    events:
-      data.events.length > 0
-        ? data.events.map((event) => encodeEvent(event, limits))
-        : undefined,
-    droppedEventsCount: data.droppedEventsCount || undefined,
-    links:
-      data.links.length > 0
-        ? data.links.map((link) => encodeLink(link, limits))
-        : undefined,
-    droppedLinksCount: data.droppedLinksCount || undefined,
-    status: encodeStatus(data.status),
+    events: nonEmpty(
+      data.events.map((event) => encodeSpanEvent(event, limits)),
+    ),
+    droppedEventsCount: nonZero(data.droppedEventsCount),
+    links: nonEmpty(data.links.map((link) => encodeSpanLink(link, limits))),
+    droppedLinksCount: nonZero(data.droppedLinksCount),
+    status: encodeSpanStatus(data.status),
   }
 }
 
@@ -112,19 +117,8 @@ export function createOtlpTracesRequest(
   options: OtlpRequestOptions = {},
 ): OTelJsonTracesData {
   const resourceSpans: OTelJsonResourceSpans = {
-    resource: encodeResource(resourceAttributes),
-    scopeSpans: [
-      {
-        scope: encodeScope(options.scope),
-        spans: [...spans],
-        ...(options.scope?.schemaUrl === undefined
-          ? {}
-          : { schemaUrl: options.scope.schemaUrl }),
-      },
-    ],
-    ...(options.resourceSchemaUrl === undefined
-      ? {}
-      : { schemaUrl: options.resourceSchemaUrl }),
+    ...resourceEnvelope(resourceAttributes, options),
+    scopeSpans: [{ ...scopeEnvelope(options), spans: [...spans] }],
   }
 
   return { resourceSpans: [resourceSpans] }
