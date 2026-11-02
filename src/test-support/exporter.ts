@@ -1,8 +1,5 @@
-import {
-  OtlpHttpExporter,
-  type OtlpHttpExporterOptions,
-} from '../http-exporter.js'
-import type { OtlpLogRecord } from '../otlp.js'
+import { OtlpHttpExporter } from '../transport/http-exporter.js'
+import type { OtlpHttpExporterOptions, OtlpLogRecord } from '../types.js'
 
 export const record: OtlpLogRecord = {
   timeUnixNano: '1728000000000000000',

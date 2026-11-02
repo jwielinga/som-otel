@@ -1,19 +1,66 @@
-export { OtlpExportError, OtlpHttpExporter } from './http-exporter.js'
-export type { OtlpHttpExporterOptions } from './http-exporter.js'
-export { createSom, createSomLogger } from './sdk.js'
-export type { SomLogger } from './logger.js'
-export type { Som } from './som.js'
-export type { SomTracer } from './tracer.js'
-export type { Span } from './span.js'
-export { traceContextFromApi } from './trace-context.js'
-export type { OTelApiLike } from './trace-context.js'
-export * from './otel.types.js'
-export type { OtlpLogRecord } from './otlp.js'
+export { OtlpExportError, OtlpHttpExporter } from './transport/http-exporter.js'
+export { createSom, createSomLogger } from './core/sdk.js'
+export type { SomLogger } from './logs/logger.js'
+export type { Som } from './core/som.js'
+export type { SomTracer } from './traces/tracer.js'
+export type { Span } from './traces/span.js'
+export { traceContextFromApi } from './traces/trace-context.js'
+export {
+  OTelLogRecordFlags,
+  OTelSeverityNumber,
+  OTelSpanKind,
+  OTelStatusCode,
+} from './otlp/otlp.constants.js'
 export type {
   LogAttributes,
   LogAttributeValue,
   LogOptions,
   LogSeverity,
+  OTelAnyValue,
+  OTelApiLike,
+  OTelApplicationLog,
+  OTelAttributes,
+  OTelEntityRef,
+  OTelEvent,
+  OTelExportLogsServiceRequest,
+  OTelInstrumentationScope,
+  OTelJsonAnyValue,
+  OTelJsonArrayValue,
+  OTelJsonEntityRef,
+  OTelJsonExportLogsServiceRequest,
+  OTelJsonExportTraceServiceRequest,
+  OTelJsonInstrumentationScope,
+  OTelJsonKeyValue,
+  OTelJsonKeyValueList,
+  OTelJsonLogRecord,
+  OTelJsonLogsData,
+  OTelJsonResource,
+  OTelJsonResourceLogs,
+  OTelJsonResourceSpans,
+  OTelJsonScopeLogs,
+  OTelJsonScopeSpans,
+  OTelJsonSpan,
+  OTelJsonSpanEvent,
+  OTelJsonSpanId,
+  OTelJsonSpanLink,
+  OTelJsonStatus,
+  OTelJsonTraceId,
+  OTelJsonTracesData,
+  OTelJsonUint64,
+  OTelLogRecord,
+  OTelLogRecordFlagsValue,
+  OTelLogs,
+  OTelLogsData,
+  OTelResource,
+  OTelResourceLogs,
+  OTelScopeLogs,
+  OTelSimpleLog,
+  OTelSpanId,
+  OTelTimestamp,
+  OTelTraceFlags,
+  OTelTraceId,
+  OtlpHttpExporterOptions,
+  OtlpLogRecord,
   SomDiagnosticEvent,
   SomLoggerBatchOptions,
   SomLoggerLimits,
@@ -30,4 +77,4 @@ export type {
   SpanTime,
   TraceContext,
   TraceContextProvider,
-} from './sdk.types.js'
+} from './types.js'
