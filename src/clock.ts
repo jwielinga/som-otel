@@ -25,3 +25,12 @@ export function nowUnixNano(): bigint {
 
   return BigInt(Math.round(predictedMs * 1_000)) * 1_000n
 }
+
+// A number is epoch milliseconds, a bigint is epoch nanoseconds; unset or non-finite means now.
+export function toUnixNano(time: Date | number | bigint | undefined): bigint {
+  if (typeof time === 'bigint') return time
+
+  const ms = time instanceof Date ? time.getTime() : time
+  if (ms === undefined || !Number.isFinite(ms)) return nowUnixNano()
+  return BigInt(Math.round(ms * 1_000)) * 1_000n
+}

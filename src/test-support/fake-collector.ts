@@ -1,15 +1,32 @@
+import type { OTelJsonSpan } from '../otel.types.js'
 import type { OtlpLogRecord } from '../otlp.js'
 
 type JsonAttribute = { key: string; value?: unknown }
 
+type JsonScope = {
+  name: string
+  version?: string
+  attributes?: JsonAttribute[]
+}
+
+// Each request carries one signal; the other list is empty.
 export type CollectedPayload = {
   resourceLogs: Array<{
     schemaUrl?: string
     resource: { attributes: JsonAttribute[] }
     scopeLogs: Array<{
       schemaUrl?: string
-      scope: { name: string; version?: string; attributes?: JsonAttribute[] }
+      scope: JsonScope
       logRecords: OtlpLogRecord[]
+    }>
+  }>
+  resourceSpans: Array<{
+    schemaUrl?: string
+    resource: { attributes: JsonAttribute[] }
+    scopeSpans: Array<{
+      schemaUrl?: string
+      scope: JsonScope
+      spans: OTelJsonSpan[]
     }>
   }>
 }
@@ -23,7 +40,10 @@ export type CollectedRequest = {
   bodyBytes: number
   compressed: boolean
   payload: CollectedPayload
+  // The parsed request exactly as sent, without the normalizing empty lists of `payload`.
+  body: unknown
   records: OtlpLogRecord[]
+  spans: OTelJsonSpan[]
 }
 
 // A number is a bare status response; an Error is thrown as a network failure.
@@ -64,7 +84,12 @@ function decode(
     bodyBytes: number,
     compressed: boolean,
   ): CollectedRequest => {
-    const payload = JSON.parse(text) as CollectedPayload
+    const parsed = JSON.parse(text) as Partial<CollectedPayload>
+    const payload: CollectedPayload = {
+      resourceLogs: [],
+      resourceSpans: [],
+      ...parsed,
+    }
     return {
       url,
       headers,
@@ -73,8 +98,12 @@ function decode(
       bodyBytes,
       compressed,
       payload,
+      body: parsed,
       records: payload.resourceLogs.flatMap((resource) =>
         resource.scopeLogs.flatMap((scope) => scope.logRecords),
+      ),
+      spans: payload.resourceSpans.flatMap((resource) =>
+        resource.scopeSpans.flatMap((scope) => scope.spans),
       ),
     }
   }
@@ -111,6 +140,10 @@ export class FakeCollector {
 
   get records(): OtlpLogRecord[] {
     return this.requests.flatMap((request) => request.records)
+  }
+
+  get spans(): OTelJsonSpan[] {
+    return this.requests.flatMap((request) => request.spans)
   }
 
   // String bodies of every received record, in arrival order.

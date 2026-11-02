@@ -9,10 +9,10 @@ What Som deliberately does not do, so you can plan around it.
 
 ## Scope
 
-- **Logs only.** No traces and no metrics. Use the OpenTelemetry JS SDK for those, and correlate through [`traceContext`](./guides/trace-correlation.md).
+- **Logs and manual traces.** Som sends logs and spans. There are no metrics. Spans are created by hand; there is no automatic instrumentation, no ambient active span, and no sampling beyond following a parent's decision. See [Tracing](./guides/tracing.md).
 - **No automatic capture.** Som does not hook `console`, uncaught errors, network requests, or navigation. See [Recipes](./guides/recipes.md).
 - **JSON over HTTP only.** No protobuf, no gRPC, no WebSocket transports.
-- **One endpoint.** Each logger sends to one collector URL.
+- **One endpoint per signal.** Logs go to one collector URL and spans to another.
 
 ## Delivery
 

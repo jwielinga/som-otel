@@ -1,4 +1,5 @@
 import { nowUnixNano } from './clock.js'
+import { validTraceFields } from './trace-ids.js'
 import {
   OTelSeverityNumber,
   type OTelJsonAnyValue,
@@ -6,6 +7,7 @@ import {
   type OTelJsonKeyValue,
   type OTelJsonLogRecord,
   type OTelJsonLogsData,
+  type OTelJsonResource,
   type OTelJsonResourceLogs,
   type OTelLogRecord,
 } from './otel.types.js'
@@ -45,6 +47,8 @@ export const DEFAULT_LIMITS: OtlpLimits = {
   attributeCountLimit: 128,
   attributeValueLengthLimit: Infinity,
   maxValueDepth: 20,
+  eventCountLimit: 128,
+  linkCountLimit: 128,
 }
 
 // Resource and scope attributes are developer-supplied, so only the depth guard applies.
@@ -72,6 +76,8 @@ export function resolveLimits(limits: SomLoggerLimits = {}): OtlpLimits {
       limits.attributeValueLengthLimit ??
       DEFAULT_LIMITS.attributeValueLengthLimit,
     maxValueDepth: limits.maxValueDepth ?? DEFAULT_LIMITS.maxValueDepth,
+    eventCountLimit: limits.eventCountLimit ?? DEFAULT_LIMITS.eventCountLimit,
+    linkCountLimit: limits.linkCountLimit ?? DEFAULT_LIMITS.linkCountLimit,
   }
 }
 
@@ -119,6 +125,16 @@ function createContext(
   }
 }
 
+// JS has one number type: safe integers map to int_value (as the OTel JS SDK does), the rest to double_value.
+function encodeNumber(value: number, key: string): OTelJsonAnyValue {
+  if (!Number.isFinite(value)) {
+    throw new TypeError(`Log attribute "${key}" must be a finite number.`)
+  }
+  return Number.isSafeInteger(value)
+    ? { intValue: String(value) }
+    : { doubleValue: value }
+}
+
 function encodeValue(
   value: LogAttributeValue,
   key: string,
@@ -130,12 +146,7 @@ function encodeValue(
   }
   if (typeof value === 'boolean') return { boolValue: value }
 
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new TypeError(`Log attribute "${key}" must be a finite number.`)
-    }
-    return { doubleValue: value }
-  }
+  if (typeof value === 'number') return encodeNumber(value, key)
 
   if (typeof value === 'bigint') {
     if (value < MIN_INT64 || value > MAX_INT64) {
@@ -204,7 +215,7 @@ function encodeContainer(
   }
 }
 
-function encodeAttributes(
+export function encodeAttributes(
   attributes: LogAttributes,
   limits: OtlpLimits,
 ): { values: OTelJsonKeyValue[]; dropped: number } {
@@ -263,8 +274,7 @@ export function createOtlpLogRecord(
     attributes: encoded.values,
     droppedAttributesCount: encoded.dropped || undefined,
     flags: extras.flags,
-    traceId: extras.traceId,
-    spanId: extras.spanId,
+    ...validTraceFields(extras),
     eventName: extras.eventName,
   }
 }
@@ -292,8 +302,7 @@ export function encodeOtlpLogRecord(
     droppedAttributesCount:
       dropped === 0 ? record.droppedAttributesCount : dropped,
     flags: record.flags,
-    traceId: record.traceId,
-    spanId: record.spanId,
+    ...validTraceFields(record),
     eventName: record.eventName,
   }
 }
@@ -314,28 +323,43 @@ function encodeScope(
   return encoded
 }
 
+function withSchemaUrl(schemaUrl: string | undefined): { schemaUrl?: string } {
+  return schemaUrl === undefined ? {} : { schemaUrl }
+}
+
+// The resource part of a request, shared by every signal.
+export function resourceEnvelope(
+  resourceAttributes: LogAttributes,
+  options: OtlpRequestOptions,
+): { resource: OTelJsonResource; schemaUrl?: string } {
+  return {
+    resource: {
+      attributes: encodeAttributes(resourceAttributes, UNLIMITED_ATTRIBUTES)
+        .values,
+    },
+    ...withSchemaUrl(options.resourceSchemaUrl),
+  }
+}
+
+// The scope part of a request, shared by every signal.
+export function scopeEnvelope(options: OtlpRequestOptions): {
+  scope: OTelJsonInstrumentationScope
+  schemaUrl?: string
+} {
+  return {
+    scope: encodeScope(options.scope),
+    ...withSchemaUrl(options.scope?.schemaUrl),
+  }
+}
+
 export function createOtlpLogsRequest(
   resourceAttributes: LogAttributes,
   logRecords: readonly OtlpLogRecord[],
   options: OtlpRequestOptions = {},
 ): OTelJsonLogsData {
   const resourceLogs: OTelJsonResourceLogs = {
-    resource: {
-      attributes: encodeAttributes(resourceAttributes, UNLIMITED_ATTRIBUTES)
-        .values,
-    },
-    scopeLogs: [
-      {
-        scope: encodeScope(options.scope),
-        logRecords: [...logRecords],
-        ...(options.scope?.schemaUrl === undefined
-          ? {}
-          : { schemaUrl: options.scope.schemaUrl }),
-      },
-    ],
-    ...(options.resourceSchemaUrl === undefined
-      ? {}
-      : { schemaUrl: options.resourceSchemaUrl }),
+    ...resourceEnvelope(resourceAttributes, options),
+    scopeLogs: [{ ...scopeEnvelope(options), logRecords: [...logRecords] }],
   }
 
   return { resourceLogs: [resourceLogs] }

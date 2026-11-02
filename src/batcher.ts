@@ -1,4 +1,6 @@
-import type { SomLoggerBatchOptions } from './sdk.types.js'
+import { collectFailures, throwFailures } from './failures.js'
+import type { SomLoggerBatchOptions, SomSignal } from './sdk.types.js'
+import { SIGNAL_NAMES } from './signal.js'
 
 const DEFAULT_MAX_BATCH_SIZE = 20
 const DEFAULT_MAX_QUEUE_SIZE = 1_000
@@ -15,6 +17,8 @@ export type LogBatcherOptions<T> = SomLoggerBatchOptions & {
   // Used by flushOnUnload(); defaults to sendBatch.
   sendBatchOnUnload?: (items: readonly T[]) => Promise<void>
   onDropped?: (totalDropped: number) => void
+  // Names the batcher in error messages. Default 'logs'.
+  signal?: SomSignal
 }
 
 export class LogBatcher<T> {
@@ -26,6 +30,8 @@ export class LogBatcher<T> {
   private readonly sendBatch: LogBatcherOptions<T>['sendBatch']
   private readonly sendBatchOnUnload: LogBatcherOptions<T>['sendBatch']
   private readonly onDropped: LogBatcherOptions<T>['onDropped']
+  private readonly owner: string
+  private readonly aggregateMessage: string
   private readonly pendingItems: PendingItem<T>[] = []
   private flushTimer: ReturnType<typeof setTimeout> | undefined
   private activeFlush: Promise<void> | undefined
@@ -42,6 +48,9 @@ export class LogBatcher<T> {
     this.sendBatch = options.sendBatch
     this.sendBatchOnUnload = options.sendBatchOnUnload ?? options.sendBatch
     this.onDropped = options.onDropped
+    const { owner, noun } = SIGNAL_NAMES[options.signal ?? 'logs']
+    this.owner = owner
+    this.aggregateMessage = `Multiple OTLP ${noun} batches failed.`
   }
 
   get droppedCount(): number {
@@ -55,7 +64,7 @@ export class LogBatcher<T> {
     if (this.pendingItems.length >= this.maxQueueSize) {
       if (this.overflowStrategy === 'reject-new') {
         this.recordDrop()
-        return Promise.reject(new Error('SomLogger batch queue is full.'))
+        return Promise.reject(new Error(`${this.owner} batch queue is full.`))
       }
       this.dropOldest()
     }
@@ -99,11 +108,9 @@ export class LogBatcher<T> {
     try {
       await this.flush()
     } catch (nextError) {
-      throw new AggregateError(
-        [error, nextError],
-        'Multiple OTLP log batches failed.',
-        { cause: nextError },
-      )
+      throw new AggregateError([error, nextError], this.aggregateMessage, {
+        cause: nextError,
+      })
     }
 
     throw error
@@ -138,11 +145,7 @@ export class LogBatcher<T> {
     }
 
     return Promise.allSettled(sends).then((results) => {
-      throwFailures(
-        results.flatMap((result) =>
-          result.status === 'rejected' ? [result.reason as unknown] : [],
-        ),
-      )
+      throwFailures(collectFailures(results), this.aggregateMessage)
     })
   }
 
@@ -156,7 +159,7 @@ export class LogBatcher<T> {
     const oldest = this.pendingItems.shift()
     this.recordDrop()
     oldest?.reject(
-      new Error('SomLogger batch queue is full; oldest record dropped.'),
+      new Error(`${this.owner} batch queue is full; oldest record dropped.`),
     )
   }
 
@@ -210,13 +213,6 @@ export class LogBatcher<T> {
       }
     }
 
-    throwFailures(failures)
-  }
-}
-
-function throwFailures(failures: unknown[]): void {
-  if (failures.length === 1) throw failures[0]
-  if (failures.length > 1) {
-    throw new AggregateError(failures, 'Multiple OTLP log batches failed.')
+    throwFailures(failures, this.aggregateMessage)
   }
 }

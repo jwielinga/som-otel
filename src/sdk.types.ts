@@ -1,4 +1,5 @@
 import type { OTelAnyValue } from './otel.types.js'
+import type { Span } from './span.js'
 
 export type LogSeverity = 'trace' | 'debug' | 'info' | 'warn' | 'error'
 
@@ -16,9 +17,40 @@ export type TraceContext = {
 
 export type TraceContextProvider = () => TraceContext | undefined
 
+// Identifies a span; assignable to TraceContext.
+export type SpanContext = Required<TraceContext>
+
+export type SpanKind =
+  'internal' | 'server' | 'client' | 'producer' | 'consumer'
+
+// A Date, epoch milliseconds (may be fractional), or epoch nanoseconds as a bigint.
+export type SpanTime = Date | number | bigint
+
+// Unset is the default and cannot be set; `ok` is final and drops the message.
+export type SpanStatus = { code: 'ok' | 'error'; message?: string }
+
+export type SpanLink = {
+  context: TraceContext
+  attributes?: LogAttributes
+}
+
+export type SpanOptions = {
+  // Default 'internal'.
+  kind?: SpanKind
+  // Continues the parent's trace and sampling decision. Default: a new root span.
+  parent?: Span | TraceContext
+  attributes?: LogAttributes
+  links?: readonly SpanLink[]
+  // Default now.
+  startTime?: SpanTime
+}
+
 // Trace fields come together or not at all; without them the traceContext provider applies.
+// `span` is shorthand for the span's own trace fields and cannot be combined with them.
+type NoTraceFields = { traceId?: never; spanId?: never; traceFlags?: never }
+
 export type LogOptions = { eventName?: string } & (
-  TraceContext | { traceId?: never; spanId?: never; traceFlags?: never }
+  (TraceContext & { span?: never }) | (NoTraceFields & { span?: Span })
 )
 
 export type SomLoggerBatchOptions = {
@@ -51,16 +83,39 @@ export type SomLoggerLimits = {
   attributeValueLengthLimit?: number
   // Default 20. Deeper nested values are replaced with a placeholder string.
   maxValueDepth?: number
+  // Default 128. Spans only: excess events are dropped and counted in droppedEventsCount.
+  eventCountLimit?: number
+  // Default 128. Spans only: excess links are dropped and counted in droppedLinksCount.
+  linkCountLimit?: number
 }
 
+export type SomSignal = 'logs' | 'traces'
+
 export type SomDiagnosticEvent =
-  | { type: 'export-failed'; error: unknown; recordCount: number }
+  | {
+      type: 'export-failed'
+      signal: SomSignal
+      error: unknown
+      recordCount: number
+    }
   | {
       type: 'partial-success'
+      signal: 'logs'
       rejectedLogRecords: number
       errorMessage?: string
     }
-  | { type: 'records-dropped'; reason: 'queue-full'; totalDropped: number }
+  | {
+      type: 'partial-success'
+      signal: 'traces'
+      rejectedSpans: number
+      errorMessage?: string
+    }
+  | {
+      type: 'records-dropped'
+      signal: SomSignal
+      reason: 'queue-full'
+      totalDropped: number
+    }
 
 export type SomLoggerOptions = {
   endpoint: string
@@ -84,4 +139,9 @@ export type SomLoggerOptions = {
   limits?: SomLoggerLimits
   traceContext?: TraceContextProvider
   onDiagnostic?: (event: SomDiagnosticEvent) => void
+}
+
+export type SomOptions = SomLoggerOptions & {
+  // Full traces URL. Default: `endpoint` with its trailing /logs replaced by /traces.
+  tracesEndpoint?: string
 }

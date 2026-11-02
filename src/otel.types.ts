@@ -190,3 +190,81 @@ export type OTelEvent = OTelLogRecord & {
 export type OTelSimpleLog = OTelLogRecord & {
   body?: string
 }
+
+export const OTelSpanKind = {
+  UNSPECIFIED: 0,
+  INTERNAL: 1,
+  SERVER: 2,
+  CLIENT: 3,
+  PRODUCER: 4,
+  CONSUMER: 5,
+} as const
+
+export type OTelSpanKind = (typeof OTelSpanKind)[keyof typeof OTelSpanKind]
+
+export const OTelStatusCode = {
+  UNSET: 0,
+  OK: 1,
+  ERROR: 2,
+} as const
+
+export type OTelStatusCode =
+  (typeof OTelStatusCode)[keyof typeof OTelStatusCode]
+
+export type OTelJsonStatus = {
+  message?: string
+  code?: OTelStatusCode
+}
+
+export type OTelJsonSpanEvent = {
+  timeUnixNano?: OTelJsonUint64
+  name?: string
+  attributes?: OTelJsonKeyValue[]
+  droppedAttributesCount?: number
+}
+
+export type OTelJsonSpanLink = {
+  traceId?: OTelJsonTraceId
+  spanId?: OTelJsonSpanId
+  traceState?: string
+  attributes?: OTelJsonKeyValue[]
+  droppedAttributesCount?: number
+  flags?: number
+}
+
+export type OTelJsonSpan = {
+  traceId?: OTelJsonTraceId
+  spanId?: OTelJsonSpanId
+  traceState?: string
+  parentSpanId?: OTelJsonSpanId
+  flags?: number
+  name?: string
+  kind?: OTelSpanKind
+  startTimeUnixNano?: OTelJsonUint64
+  endTimeUnixNano?: OTelJsonUint64
+  attributes?: OTelJsonKeyValue[]
+  droppedAttributesCount?: number
+  events?: OTelJsonSpanEvent[]
+  droppedEventsCount?: number
+  links?: OTelJsonSpanLink[]
+  droppedLinksCount?: number
+  status?: OTelJsonStatus
+}
+
+export type OTelJsonScopeSpans = {
+  scope?: OTelJsonInstrumentationScope
+  spans?: OTelJsonSpan[]
+  schemaUrl?: string
+}
+
+export type OTelJsonResourceSpans = {
+  resource?: OTelJsonResource
+  scopeSpans?: OTelJsonScopeSpans[]
+  schemaUrl?: string
+}
+
+export type OTelJsonTracesData = {
+  resourceSpans?: OTelJsonResourceSpans[]
+}
+
+export type OTelJsonExportTraceServiceRequest = OTelJsonTracesData

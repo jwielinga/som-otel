@@ -11,6 +11,50 @@ title: Logger API
 import { createSomLogger, type SomLogger } from 'som-otel'
 ```
 
+## `createSom()`
+
+`createSom(options)` returns a `Som` with a logger and a tracer that share one configuration:
+
+```ts
+const som = createSom(options) // SomOptions
+
+som.logger // SomLogger
+som.tracer // SomTracer
+som.flush(): Promise<void>
+som.shutdown(): Promise<void>
+```
+
+`flush()` and `shutdown()` act on both signals. They wait for both, then reject with the single failure or an `AggregateError` if both fail. `shutdown()` also removes the page listeners. `SomOptions` is `SomLoggerOptions` plus `tracesEndpoint`. See [Tracing](../guides/tracing.md).
+
+## `SomTracer`
+
+```ts
+tracer.startSpan(name, options?: SpanOptions): Span
+tracer.trace<T>(name, fn: (span: Span) => T, options?: SpanOptions): T
+tracer.flush(): Promise<void>
+tracer.shutdown(): Promise<void>
+tracer.droppedSpanCount: number
+```
+
+`SpanOptions` has `kind`, `attributes`, `links`, `parent`, and `startTime`. `trace()` ends the span when `fn` returns or its promise settles, and records a throw or rejection as an exception with `error` status.
+
+## `Span`
+
+```ts
+span.setAttribute(key, value): Span
+span.setAttributes(attributes): Span
+span.addEvent(name, attributes?, time?): Span
+span.recordException(error, attributes?, time?): Span
+span.addLink(link): Span
+span.setStatus({ code: 'ok' | 'error', message? }): Span
+span.updateName(name): Span
+span.end(endTime?): void
+span.spanContext(): SpanContext
+span.isRecording(): boolean
+```
+
+`end()` never throws, and after it every call is ignored. See [Tracing](../guides/tracing.md#span-methods) for the semantics.
+
 ## Severity helpers
 
 ```ts
@@ -85,12 +129,12 @@ The optional last argument of `log()` and the helpers:
 
 ```ts
 type LogOptions = { eventName?: string } & (
-  | { traceId: string; spanId: string; traceFlags?: number }
-  | { traceId?: never; spanId?: never; traceFlags?: never }
+  | { traceId: string; spanId: string; traceFlags?: number; span?: never }
+  | { span?: Span; traceId?: never; spanId?: never; traceFlags?: never }
 )
 ```
 
-`traceId` and `spanId` come together. See [Trace correlation](../guides/trace-correlation.md).
+`traceId` and `spanId` come together. `span` is shorthand for a span's own ids and cannot be combined with them. See [Trace correlation](../guides/trace-correlation.md).
 
 ## `OtlpHttpExporter`
 

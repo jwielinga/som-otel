@@ -39,22 +39,23 @@ The **body** is the main content of the record; **attributes** are structured ke
 
 ### Attribute values
 
-| JavaScript value | OTLP value    | Notes                                                        |
-| ---------------- | ------------- | ------------------------------------------------------------ |
-| `string`         | `stringValue` |                                                              |
-| `boolean`        | `boolValue`   |                                                              |
-| `number`         | `doubleValue` | Must be finite. Use `bigint` when integer precision matters. |
-| `bigint`         | `intValue`    | Must fit a signed 64-bit integer.                            |
-| `Uint8Array`     | `bytesValue`  | Sent as base64 in JSON.                                      |
-| array            | `arrayValue`  | Items can be any supported value.                            |
-| plain object     | `kvlistValue` | Nested maps are fine.                                        |
-| `Error`          | map           | See [Logging errors](./logging-errors.md).                   |
+| JavaScript value | OTLP value                  | Notes                                                                                                  |
+| ---------------- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `string`         | `stringValue`               |                                                                                                        |
+| `boolean`        | `boolValue`                 |                                                                                                        |
+| `number`         | `intValue` or `doubleValue` | Must be finite. Safe integers (up to 2^53 - 1) are sent as `intValue`, other numbers as `doubleValue`. |
+| `bigint`         | `intValue`                  | Must fit a signed 64-bit integer.                                                                      |
+| `Uint8Array`     | `bytesValue`                | Sent as base64 in JSON.                                                                                |
+| array            | `arrayValue`                | Items can be any supported value.                                                                      |
+| plain object     | `kvlistValue`               | Nested maps are fine.                                                                                  |
+| `Error`          | map                         | See [Logging errors](./logging-errors.md).                                                             |
 
 ```ts
 await logger.info('Order placed', {
   orderId: 'order-42', // string
   total: 12.5, // double
-  items: 3n, // int64
+  items: 3, // int (a safe integer)
+  quantity: 3n, // int64 (use bigint beyond 2^53 - 1)
   gift: false, // bool
   tags: ['promo', 'mobile'], // array
   shipping: { method: 'express', days: 2 }, // map

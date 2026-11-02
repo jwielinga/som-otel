@@ -14,14 +14,17 @@ import type { SomLoggerOptions } from 'som-otel'
 
 ## Values
 
-| Export                | Description                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------ |
-| `createSomLogger`     | Factory returning a `SomLogger`. The only way to create a logger.                          |
-| `OtlpExportError`     | Error thrown for export failures, with `status`, `retryable`, and `retryAfterMs`.          |
-| `OtlpHttpExporter`    | Low-level transport. See [Logger API](./logger-api.md#otlphttpexporter).                   |
-| `traceContextFromApi` | Adapter for `@opentelemetry/api`. See [Trace correlation](../guides/trace-correlation.md). |
-| `OTelSeverityNumber`  | Constant object with the OTel severity numbers (`UNSPECIFIED` to `FATAL4`).                |
-| `OTelLogRecordFlags`  | Constants for log record flags (`TRACE_FLAGS_MASK`).                                       |
+| Export                | Description                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| `createSomLogger`     | Factory returning a `SomLogger`.                                                               |
+| `createSom`           | Factory returning a `Som` with a `logger` and a `tracer`. See [Tracing](../guides/tracing.md). |
+| `OtlpExportError`     | Error thrown for export failures, with `status`, `retryable`, and `retryAfterMs`.              |
+| `OtlpHttpExporter`    | Low-level transport. See [Logger API](./logger-api.md#otlphttpexporter).                       |
+| `traceContextFromApi` | Adapter for `@opentelemetry/api`. See [Trace correlation](../guides/trace-correlation.md).     |
+| `OTelSeverityNumber`  | Constant object with the OTel severity numbers (`UNSPECIFIED` to `FATAL4`).                    |
+| `OTelLogRecordFlags`  | Constants for log record flags (`TRACE_FLAGS_MASK`).                                           |
+| `OTelSpanKind`        | Constant object with the OTel span kind numbers (`UNSPECIFIED` to `CONSUMER`).                 |
+| `OTelStatusCode`      | Constant object with the OTel status codes (`UNSET`, `OK`, `ERROR`).                           |
 
 ### `OTelSeverityNumber`
 
@@ -39,29 +42,40 @@ The type `OTelSeverityNumber` is the union of these numbers.
 
 ## Option types
 
-| Type                      | Used for                                          |
-| ------------------------- | ------------------------------------------------- |
-| `SomLogger`               | The type of the logger `createSomLogger` returns. |
-| `SomLoggerOptions`        | The argument of `createSomLogger`.                |
-| `SomLoggerBatchOptions`   | `batch`.                                          |
-| `SomLoggerRetryOptions`   | `retry`.                                          |
-| `SomLoggerScope`          | `scope`.                                          |
-| `SomLoggerLimits`         | `limits`.                                         |
-| `TraceContext`            | The value a `traceContext` provider returns.      |
-| `TraceContextProvider`    | The type of `traceContext`.                       |
-| `SomDiagnosticEvent`      | The argument of `onDiagnostic`.                   |
-| `OtlpHttpExporterOptions` | Options of `OtlpHttpExporter`.                    |
-| `OTelApiLike`             | Argument of `traceContextFromApi`.                |
+| Type                      | Used for                                                          |
+| ------------------------- | ----------------------------------------------------------------- |
+| `SomLogger`               | The type of the logger `createSomLogger` returns.                 |
+| `Som`                     | The type `createSom` returns.                                     |
+| `SomTracer`               | The type of `som.tracer`.                                         |
+| `Span`                    | The type `startSpan` returns.                                     |
+| `SomLoggerOptions`        | The argument of `createSomLogger`.                                |
+| `SomOptions`              | The argument of `createSom`.                                      |
+| `SpanOptions`             | The options of `startSpan` and `trace`.                           |
+| `SpanKind`                | `'internal' \| 'server' \| 'client' \| 'producer' \| 'consumer'`. |
+| `SpanStatus`              | The argument of `span.setStatus`.                                 |
+| `SpanLink`                | A link to another span.                                           |
+| `SpanContext`             | `{ traceId, spanId, traceFlags }` of a span.                      |
+| `SpanTime`                | `Date`, epoch milliseconds, or nanosecond `bigint`.               |
+| `SomSignal`               | `'logs' \| 'traces'`, the `signal` of a diagnostic event.         |
+| `SomLoggerBatchOptions`   | `batch`.                                                          |
+| `SomLoggerRetryOptions`   | `retry`.                                                          |
+| `SomLoggerScope`          | `scope`.                                                          |
+| `SomLoggerLimits`         | `limits`.                                                         |
+| `TraceContext`            | The value a `traceContext` provider returns.                      |
+| `TraceContextProvider`    | The type of `traceContext`.                                       |
+| `SomDiagnosticEvent`      | The argument of `onDiagnostic`.                                   |
+| `OtlpHttpExporterOptions` | Options of `OtlpHttpExporter`.                                    |
+| `OTelApiLike`             | Argument of `traceContextFromApi`.                                |
 
 ## Log types
 
-| Type                | Description                                              |
-| ------------------- | -------------------------------------------------------- |
-| `LogSeverity`       | `'trace' \| 'debug' \| 'info' \| 'warn' \| 'error'`.     |
-| `LogAttributeValue` | Any supported value, including `Error`.                  |
-| `LogAttributes`     | Read-only map of attribute names to `LogAttributeValue`. |
-| `LogOptions`        | Optional trace fields and `eventName` for a log call.    |
-| `OtlpLogRecord`     | A log record in OTLP/JSON shape.                         |
+| Type                | Description                                                    |
+| ------------------- | -------------------------------------------------------------- |
+| `LogSeverity`       | `'trace' \| 'debug' \| 'info' \| 'warn' \| 'error'`.           |
+| `LogAttributeValue` | Any supported value, including `Error`.                        |
+| `LogAttributes`     | Read-only map of attribute names to `LogAttributeValue`.       |
+| `LogOptions`        | Optional trace fields, `span`, and `eventName` for a log call. |
+| `OtlpLogRecord`     | A log record in OTLP/JSON shape.                               |
 
 ## OpenTelemetry data types
 

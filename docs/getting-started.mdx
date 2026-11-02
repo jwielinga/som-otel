@@ -78,6 +78,27 @@ await logger.shutdown()
 
 In a browser, Som also flushes automatically when the page is hidden or unloaded, so most apps never call `shutdown()`. See [Page unload](./guides/page-unload.md).
 
+## Add spans
+
+Use `createSom()` instead to get a logger and a tracer from one configuration:
+
+```ts title="som.ts"
+import { createSom } from 'som-otel'
+
+export const { logger, tracer } = createSom({
+  endpoint: 'https://collector.example.com/v1/logs',
+  serviceName: 'web-app',
+})
+```
+
+```ts
+await tracer.trace('load profile', async (span) => {
+  await logger.info('Loading profile', {}, { span })
+})
+```
+
+Spans are sent to `https://collector.example.com/v1/traces`, derived from `endpoint`. See [Tracing](./guides/tracing.md).
+
 ## Make sure the collector accepts browser requests
 
 Browsers enforce CORS. If your collector does not allow your site's origin, requests fail before any log arrives. The [Collector setup](./guides/collector-setup.md) guide has a ready-to-use OpenTelemetry Collector configuration.

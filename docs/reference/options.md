@@ -5,7 +5,7 @@ title: Options
 
 # Options
 
-All options are fields of `SomLoggerOptions`, passed to `createSomLogger()`.
+All options are fields of `SomLoggerOptions`, passed to `createSomLogger()`. `createSom()` takes `SomOptions`, which is the same plus `tracesEndpoint`, and applies every option to both logs and spans.
 
 ```ts
 import { createSomLogger, type SomLoggerOptions } from 'som-otel'
@@ -17,6 +17,12 @@ import { createSomLogger, type SomLoggerOptions } from 'som-otel'
 | ------------- | -------- | --------------------------------------------------------------- |
 | `endpoint`    | `string` | Complete OTLP/HTTP logs URL. Som adds no path. Cannot be empty. |
 | `serviceName` | `string` | Becomes the `service.name` resource attribute. Cannot be empty. |
+
+## Traces (`createSom` only)
+
+| Option           | Type     | Default                                      | Description                                                                                                                      |
+| ---------------- | -------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `tracesEndpoint` | `string` | `endpoint` with trailing `/logs` → `/traces` | Complete OTLP/HTTP traces URL. Required when `endpoint` does not end in `/logs`. [Tracing](../guides/tracing.md#traces-endpoint) |
 
 ## Identity and request
 
@@ -69,11 +75,13 @@ import { createSomLogger, type SomLoggerOptions } from 'som-otel'
 
 `limits` fields, all optional:
 
-| Field                       | Default    | Description                      |
-| --------------------------- | ---------- | -------------------------------- |
-| `attributeCountLimit`       | `128`      | Maximum attributes per record.   |
-| `attributeValueLengthLimit` | `Infinity` | Maximum string attribute length. |
-| `maxValueDepth`             | `20`       | Maximum nesting depth of values. |
+| Field                       | Default    | Description                                                     |
+| --------------------------- | ---------- | --------------------------------------------------------------- |
+| `attributeCountLimit`       | `128`      | Maximum attributes per record, span, span event, and span link. |
+| `attributeValueLengthLimit` | `Infinity` | Maximum string attribute length.                                |
+| `maxValueDepth`             | `20`       | Maximum nesting depth of values.                                |
+| `eventCountLimit`           | `128`      | Maximum events per span (spans only).                           |
+| `linkCountLimit`            | `128`      | Maximum links per span (spans only).                            |
 
 ## Correlation and observability
 
