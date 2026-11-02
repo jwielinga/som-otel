@@ -23,6 +23,23 @@ export type SpanContext = {
   traceFlags: number
 }
 
+export type SpanKind =
+  'internal' | 'server' | 'client' | 'producer' | 'consumer'
+
+// A Date, epoch milliseconds (may be fractional), or epoch nanoseconds as a bigint.
+export type SpanTime = Date | number | bigint
+
+// Unset is the default and cannot be set; `ok` is final and drops the message.
+export type SpanStatus = { code: 'ok' | 'error'; message?: string }
+
+export type SpanOptions = {
+  // Default 'internal'.
+  kind?: SpanKind
+  attributes?: LogAttributes
+  // Default now.
+  startTime?: SpanTime
+}
+
 // Trace fields come together or not at all; without them the traceContext provider applies.
 export type LogOptions = { eventName?: string } & (
   TraceContext | { traceId?: never; spanId?: never; traceFlags?: never }

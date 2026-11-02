@@ -236,7 +236,11 @@ export function createSom(options: SomOptions): Som {
       limits: resolveLimits(options.limits),
       traceContext: options.traceContext,
     }),
-    new SomTracer(spanBatcher),
+    new SomTracer(spanBatcher, {
+      limits: resolveLimits(options.limits),
+      onError: (error) =>
+        emit({ type: 'export-failed', error, recordCount: 1 }),
+    }),
     flushOnPageUnload([logBatcher, spanBatcher]),
   )
 }

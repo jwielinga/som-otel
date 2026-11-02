@@ -22,6 +22,10 @@ export type {
   SomLoggerScope,
   SomOptions,
   SpanContext,
+  SpanKind,
+  SpanOptions,
+  SpanStatus,
+  SpanTime,
   TraceContext,
   TraceContextProvider,
 } from './sdk.types.js'

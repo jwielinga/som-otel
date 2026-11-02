@@ -1,15 +1,69 @@
-import type {
-  OTelJsonSpan,
-  OTelJsonResourceSpans,
-  OTelJsonTracesData,
+import {
+  OTelStatusCode,
+  type OTelJsonKeyValue,
+  type OTelJsonResourceSpans,
+  type OTelJsonSpan,
+  type OTelJsonSpanEvent,
+  type OTelJsonStatus,
+  type OTelJsonTracesData,
 } from './otel.types.js'
-import { encodeResource, encodeScope, type OtlpRequestOptions } from './otlp.js'
-import type { SpanData } from './span.js'
-import type { LogAttributes } from './sdk.types.js'
+import {
+  DEFAULT_LIMITS,
+  encodeAttributes,
+  encodeResource,
+  encodeScope,
+  type OtlpLimits,
+  type OtlpRequestOptions,
+} from './otlp.js'
+import type { LogAttributes, SpanStatus } from './sdk.types.js'
+import type { SpanData, SpanEventData } from './span.js'
 
 export type OtlpSpan = OTelJsonSpan
 
-export function encodeOtlpSpan(data: SpanData): OtlpSpan {
+type EncodedAttributes = {
+  attributes: OTelJsonKeyValue[] | undefined
+  droppedAttributesCount: number | undefined
+}
+
+// Empty lists and zero counts are omitted from the payload.
+function encodeLimitedAttributes(
+  attributes: LogAttributes,
+  limits: OtlpLimits,
+): EncodedAttributes {
+  const { values, dropped } = encodeAttributes(attributes, limits)
+  return {
+    attributes: values.length > 0 ? values : undefined,
+    droppedAttributesCount: dropped || undefined,
+  }
+}
+
+function encodeEvent(
+  event: SpanEventData,
+  limits: OtlpLimits,
+): OTelJsonSpanEvent {
+  return {
+    timeUnixNano: event.timeUnixNano.toString(),
+    name: event.name,
+    ...encodeLimitedAttributes(event.attributes, limits),
+  }
+}
+
+function encodeStatus(
+  status: SpanStatus | undefined,
+): OTelJsonStatus | undefined {
+  if (status === undefined) return undefined
+  if (status.code === 'ok') return { code: OTelStatusCode.OK }
+
+  return {
+    code: OTelStatusCode.ERROR,
+    ...(status.message ? { message: status.message } : {}),
+  }
+}
+
+export function encodeOtlpSpan(
+  data: SpanData,
+  limits: OtlpLimits = DEFAULT_LIMITS,
+): OtlpSpan {
   return {
     traceId: data.context.traceId,
     spanId: data.context.spanId,
@@ -19,6 +73,12 @@ export function encodeOtlpSpan(data: SpanData): OtlpSpan {
     kind: data.kind,
     startTimeUnixNano: data.startTimeUnixNano.toString(),
     endTimeUnixNano: data.endTimeUnixNano.toString(),
+    ...encodeLimitedAttributes(data.attributes, limits),
+    events:
+      data.events.length > 0
+        ? data.events.map((event) => encodeEvent(event, limits))
+        : undefined,
+    status: encodeStatus(data.status),
   }
 }
 

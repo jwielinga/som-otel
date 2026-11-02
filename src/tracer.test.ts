@@ -1,22 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createSom } from './sdk.js'
-import type { SomOptions } from './sdk.types.js'
-import { FakeCollector } from './test-support/fake-collector.js'
+import { setupSom as setup } from './test-support/som.js'
 
 // Every test builds the SDK through createSom and observes it only via the collector.
-
-function setup(options: Partial<SomOptions> = {}) {
-  const collector = new FakeCollector()
-  const som = createSom({
-    endpoint: 'https://collector.example/v1/logs',
-    serviceName: 'checkout',
-    fetcher: collector.fetcher,
-    batch: { maxBatchSize: 1 },
-    detectResource: false,
-    ...options,
-  })
-  return { som, collector }
-}
 
 describe('createSom tracer', () => {
   it('delivers an ended root span to the derived traces endpoint', async () => {
