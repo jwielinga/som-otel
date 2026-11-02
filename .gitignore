@@ -27,3 +27,5 @@ dist-ssr
 # Docs site
 website/build
 website/.docusaurus
+
+.agents/skills/
