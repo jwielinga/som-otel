@@ -43,7 +43,7 @@ devDependencies:
     version: 10.11.0
   lucide-react:
     specifier: ^1.61.0
-    version: 1.61.0(@types/react@19.3.0)(react@19.3.1)
+    version: 1.65.0(@types/react@19.3.0)(react@19.3.1)
   prettier:
     specifier: ^3.9.10
     version: 3.9.10
@@ -2935,8 +2935,8 @@ packages:
     engines: {node: 20 || >=22}
     dev: true
 
-  /lucide-react@1.61.0(@types/react@19.3.0)(react@19.3.1):
-    resolution: {integrity: sha512-v2SQPPPNjnr+BlhL9Spuzmo5yR+hLkftfuE4E3jaxdNPgSH0hJKPcLJBP7yAta87jQNPsSERS59PJjCJ/CorBA==}
+  /lucide-react@1.65.0(@types/react@19.3.0)(react@19.3.1):
+    resolution: {integrity: sha512-roSdtzudEY39i2hn5LLjA8toYfhF2z4S10WSqZF4ubXpHlOmNTvaxMxZLdJfQDi6pEifQWX+cRmYihKSsvAxfA==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
