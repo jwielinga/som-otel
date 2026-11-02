@@ -63,4 +63,33 @@ describe('resolveSpanContext', () => {
     expect(resolved.context.traceFlags).toBe(3)
     expect(resolved.sampled).toBe(true)
   })
+
+  it('lowercases the ids of the parent', () => {
+    const resolved = resolveSpanContext({
+      traceId: traceId.toUpperCase(),
+      spanId: spanId.toUpperCase(),
+    })
+
+    expect(resolved.context.traceId).toBe(traceId)
+    expect(resolved.parentSpanId).toBe(spanId)
+  })
+
+  it.each([
+    ['a short trace id', { traceId: 'abc', spanId }],
+    ['a short span id', { traceId, spanId: 'abc' }],
+    ['non-hex ids', { traceId: 'z'.repeat(32), spanId: 'z'.repeat(16) }],
+    ['an all-zero trace id', { traceId: '0'.repeat(32), spanId }],
+    ['an all-zero span id', { traceId, spanId: '0'.repeat(16) }],
+  ])(
+    'ignores a parent with %s and starts a new sampled trace',
+    (_name, parent) => {
+      const resolved = resolveSpanContext({ ...parent, traceFlags: 0 })
+
+      expect(resolved.context.traceId).toMatch(/^[0-9a-f]{32}$/)
+      expect(resolved.context.traceId).not.toBe(parent.traceId)
+      expect(resolved.parentSpanId).toBeUndefined()
+      expect(resolved.context.traceFlags).toBe(1)
+      expect(resolved.sampled).toBe(true)
+    },
+  )
 })

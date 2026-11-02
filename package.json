@@ -37,6 +37,7 @@
     "docs:start": "pnpm --dir website start",
     "docs:build": "pnpm --dir website build",
     "test": "vitest run",
+    "test:collector": "vitest run --config vitest.collector.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "release": "semantic-release"
@@ -47,6 +48,7 @@
     "@radix-ui/react-slot": "^1.5.0",
     "@semantic-release/exec": "^7.1.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "class-variance-authority": "^0.7.1",

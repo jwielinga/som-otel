@@ -69,14 +69,18 @@ Som sends:
 | ------------------ | -------------------------------------------------------------------------------------- |
 | Timestamps         | Unix time in nanoseconds as a **decimal string**, for example `"1791201600000000000"`. |
 | 64-bit integers    | Decimal strings: `intValue: "9007199254740993"`.                                       |
-| Numbers            | `doubleValue`.                                                                         |
+| Numbers            | Safe integers as `intValue` (a decimal string), other numbers as `doubleValue`.        |
 | Bytes              | `bytesValue`, base64.                                                                  |
-| Trace and span ids | Lowercase or uppercase hex strings, as you provided them.                              |
+| Trace and span ids | Hex strings, as you provided them. An invalid id is left out; see below.               |
 | Severity           | `severityNumber` (an OTel number) and `severityText` (upper-case name for helpers).    |
 | Maps and arrays    | `kvlistValue.values[]` of `{ key, value }`, and `arrayValue.values[]`.                 |
 | Unset fields       | Omitted from the JSON.                                                                 |
 | Event records      | `eventName` carries the event name.                                                    |
 | Dropped attributes | `droppedAttributesCount`, only when greater than zero for helper-made records.         |
+
+## Invalid ids
+
+A collector answers `400` to a request with one malformed id (wrong length or characters), and the whole batch is lost. Som therefore sends only ids that are valid: `traceId` is 32 and `spanId` is 16 hex characters, not all zeros, in either case. An invalid `traceId` or `spanId` on a log record is left out (both are, when either is invalid), an invalid span `parent` starts a new trace, and a span link to an invalid context is ignored.
 
 ## Partial success responses
 
@@ -123,7 +127,7 @@ Som sends it to `https://collector.example.com/v1/traces`:
               "startTimeUnixNano": "1791201600000000000",
               "endTimeUnixNano": "1791201600120000000",
               "attributes": [
-                { "key": "cart.items", "value": { "doubleValue": 3 } }
+                { "key": "cart.items", "value": { "intValue": "3" } }
               ]
             }
           ]

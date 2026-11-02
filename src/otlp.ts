@@ -1,4 +1,5 @@
 import { nowUnixNano } from './clock.js'
+import { validTraceFields } from './trace-ids.js'
 import {
   OTelSeverityNumber,
   type OTelJsonAnyValue,
@@ -124,6 +125,16 @@ function createContext(
   }
 }
 
+// JS has one number type: safe integers map to int_value (as the OTel JS SDK does), the rest to double_value.
+function encodeNumber(value: number, key: string): OTelJsonAnyValue {
+  if (!Number.isFinite(value)) {
+    throw new TypeError(`Log attribute "${key}" must be a finite number.`)
+  }
+  return Number.isSafeInteger(value)
+    ? { intValue: String(value) }
+    : { doubleValue: value }
+}
+
 function encodeValue(
   value: LogAttributeValue,
   key: string,
@@ -135,12 +146,7 @@ function encodeValue(
   }
   if (typeof value === 'boolean') return { boolValue: value }
 
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new TypeError(`Log attribute "${key}" must be a finite number.`)
-    }
-    return { doubleValue: value }
-  }
+  if (typeof value === 'number') return encodeNumber(value, key)
 
   if (typeof value === 'bigint') {
     if (value < MIN_INT64 || value > MAX_INT64) {
@@ -268,8 +274,7 @@ export function createOtlpLogRecord(
     attributes: encoded.values,
     droppedAttributesCount: encoded.dropped || undefined,
     flags: extras.flags,
-    traceId: extras.traceId,
-    spanId: extras.spanId,
+    ...validTraceFields(extras),
     eventName: extras.eventName,
   }
 }
@@ -297,8 +302,7 @@ export function encodeOtlpLogRecord(
     droppedAttributesCount:
       dropped === 0 ? record.droppedAttributesCount : dropped,
     flags: record.flags,
-    traceId: record.traceId,
-    spanId: record.spanId,
+    ...validTraceFields(record),
     eventName: record.eventName,
   }
 }

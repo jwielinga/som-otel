@@ -10,6 +10,7 @@ import type {
   SpanStatus,
   SpanTime,
 } from './sdk.types.js'
+import { isValidTraceContext } from './trace-ids.js'
 
 export type SpanEventData = {
   name: string
@@ -137,7 +138,10 @@ export class Span {
   }
 
   addLink(link: SpanLink): this {
-    if (this.recording) this.links.add(link)
+    // A link to an invalid context would get the whole request rejected.
+    if (this.recording && isValidTraceContext(link.context)) {
+      this.links.add(link)
+    }
     return this
   }
 

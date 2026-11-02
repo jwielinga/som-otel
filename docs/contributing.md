@@ -37,6 +37,16 @@ pnpm docs:build
 
 The docs workflow also runs `pnpm typecheck` in `website/` before building.
 
+### Test against a real collector
+
+`pnpm test` never needs a collector. To check that a real OpenTelemetry Collector accepts and forwards what Som sends, run the opt-in suite. It needs Docker and starts a collector container itself:
+
+```sh
+pnpm test:collector
+# another collector version:
+SOM_COLLECTOR_IMAGE=otel/opentelemetry-collector:0.130.0 pnpm test:collector
+```
+
 ## Open a pull request
 
 Target `main`. The Quality workflow runs on pull requests and must pass. Use Conventional Commit messages because semantic-release uses commit history to determine releases:

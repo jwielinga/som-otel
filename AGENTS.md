@@ -22,4 +22,4 @@ The package is prepared for public npm releases as `som-otel`. Releases run thro
 - Use pnpm for package management.
 - Run `pnpm check` before considering changes complete.
 - When you change `docs/` or `website/`, also run `pnpm docs:build`; broken links fail the build. The Docs workflow publishes the site to GitHub Pages from `main`.
-- Inject `fetcher` in tests; do not require a live collector for unit tests.
+- Inject `fetcher` in tests; do not require a live collector for unit tests. The only tests that need one are `*.collector.test.ts`; they need Docker and run with `pnpm test:collector`, not in `pnpm check`.

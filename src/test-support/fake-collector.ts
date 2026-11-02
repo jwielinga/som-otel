@@ -40,6 +40,8 @@ export type CollectedRequest = {
   bodyBytes: number
   compressed: boolean
   payload: CollectedPayload
+  // The parsed request exactly as sent, without the normalizing empty lists of `payload`.
+  body: unknown
   records: OtlpLogRecord[]
   spans: OTelJsonSpan[]
 }
@@ -96,6 +98,7 @@ function decode(
       bodyBytes,
       compressed,
       payload,
+      body: parsed,
       records: payload.resourceLogs.flatMap((resource) =>
         resource.scopeLogs.flatMap((scope) => scope.logRecords),
       ),

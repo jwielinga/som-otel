@@ -79,6 +79,10 @@ Browser code cannot keep secrets. Prefer one of:
 
 Remember that custom headers force a preflight, and that the browser may not finish a preflight during page unload.
 
+## Collector versions
+
+Som is tested against a real OpenTelemetry Collector (see [Contributing](../contributing.md#test-against-a-real-collector)). Collector `0.130.0` and `0.140.0` accept and forward everything Som sends. Collector `0.120.0` accepts it too, but silently drops the log record `eventName` field, which it does not know yet. Use a recent collector if you rely on [`eventName`](./trace-correlation.md#per-call-trace-fields).
+
 ## Troubleshooting
 
 | Symptom                                       | Likely cause                                                                                  |

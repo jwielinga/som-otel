@@ -69,7 +69,7 @@ describe('span limits', () => {
 
     const [recorded] = collector.spans
     expect(recorded?.attributes?.map((entry) => entry.key)).toEqual(['a', 'b'])
-    expect(attributeOf(recorded?.attributes, 'a')).toEqual({ doubleValue: 10 })
+    expect(attributeOf(recorded?.attributes, 'a')).toEqual({ intValue: '10' })
     expect(recorded?.droppedAttributesCount).toBe(1)
   })
 

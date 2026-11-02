@@ -35,9 +35,9 @@ await logger.info(
 
 TypeScript enforces that `traceId` and `spanId` are given together, and that `traceFlags` only appears with them. `eventName` can be used alone.
 
-:::note No format checks at runtime
+:::note Invalid ids are ignored
 
-Som trusts the types and does not validate id formats. Pass lowercase hex strings of the right length, or the collector may reject the record.
+Som checks that `traceId` is 32 and `spanId` is 16 hex characters, and not all zeros. A collector rejects the **whole request** over one malformed id, which would lose every record in the batch, so an invalid id is left out of the record instead. When either id you give is invalid, both are left out and the log is sent without trace correlation.
 
 :::
 

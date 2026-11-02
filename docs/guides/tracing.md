@@ -58,13 +58,13 @@ Name spans with a low-cardinality description such as `GET /cart/:id`, and put t
 
 ### Options
 
-| Option       | Description                                                                                         |
-| ------------ | --------------------------------------------------------------------------------------------------- |
-| `kind`       | `'internal'` (default), `'server'`, `'client'`, `'producer'`, or `'consumer'`.                      |
-| `attributes` | Initial attributes. Same value types as [log attributes](./writing-logs.md#attribute-values).       |
-| `links`      | Links to other spans: `{ context, attributes? }`, where `context` is a span context.                |
-| `parent`     | A `Span` or a `{ traceId, spanId, traceFlags? }` object. Without it the span starts a new trace.    |
-| `startTime`  | A `Date`, epoch milliseconds (fractions allowed), or epoch nanoseconds as a `bigint`. Default: now. |
+| Option       | Description                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `kind`       | `'internal'` (default), `'server'`, `'client'`, `'producer'`, or `'consumer'`.                                                |
+| `attributes` | Initial attributes. Same value types as [log attributes](./writing-logs.md#attribute-values).                                 |
+| `links`      | Links to other spans: `{ context, attributes? }`, where `context` is a span context. A link to an invalid context is ignored. |
+| `parent`     | A `Span` or a `{ traceId, spanId, traceFlags? }` object. Without it the span starts a new trace.                              |
+| `startTime`  | A `Date`, epoch milliseconds (fractions allowed), or epoch nanoseconds as a `bigint`. Default: now.                           |
 
 `end(endTime?)` takes the same time types.
 
@@ -112,7 +112,7 @@ await tracer.trace('checkout', async (checkout) => {
 })
 ```
 
-A child continues its parent's trace and records the parent's span id as `parentSpanId`. You can also continue a trace that started elsewhere by passing its ids as `parent`, for example `{ traceId, spanId, traceFlags }` read from an incoming header.
+A child continues its parent's trace and records the parent's span id as `parentSpanId`. You can also continue a trace that started elsewhere by passing its ids as `parent`, for example `{ traceId, spanId, traceFlags }` read from an incoming header. Ids are checked: a `parent` with an invalid or all-zero id is ignored and the span starts a new trace, as the OpenTelemetry spec asks. Uppercase hex is accepted and sent in lowercase.
 
 ### Sampling
 

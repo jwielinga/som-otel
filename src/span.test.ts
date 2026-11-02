@@ -76,7 +76,7 @@ describe('span attributes', () => {
       'url.path',
       'ok',
     ])
-    expect(attributeOf(attributes, 'retries')).toEqual({ doubleValue: 2 })
+    expect(attributeOf(attributes, 'retries')).toEqual({ intValue: '2' })
     expect(attributeOf(attributes, 'ok')).toEqual({ boolValue: true })
     expect(attributeOf(attributes, 'url.path')).toEqual({
       stringValue: '/cart',

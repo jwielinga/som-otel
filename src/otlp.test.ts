@@ -46,7 +46,7 @@ describe('createOtlpLogRecord', () => {
         key: 'list',
         value: {
           arrayValue: {
-            values: [{ doubleValue: 1 }, { stringValue: 'b' }],
+            values: [{ intValue: '1' }, { stringValue: 'b' }],
           },
         },
       },
@@ -67,6 +67,26 @@ describe('createOtlpLogRecord', () => {
           },
         },
       },
+    ])
+  })
+
+  it('encodes safe integers as intValue and other numbers as doubleValue', () => {
+    const record = createOtlpLogRecord('info', 'x', {
+      count: 200,
+      negative: -7,
+      zero: 0,
+      fraction: 0.5,
+      beyondSafe: 2 ** 53,
+      huge: 1e21,
+    })
+
+    expect(record.attributes).toEqual([
+      { key: 'count', value: { intValue: '200' } },
+      { key: 'negative', value: { intValue: '-7' } },
+      { key: 'zero', value: { intValue: '0' } },
+      { key: 'fraction', value: { doubleValue: 0.5 } },
+      { key: 'beyondSafe', value: { doubleValue: 2 ** 53 } },
+      { key: 'huge', value: { doubleValue: 1e21 } },
     ])
   })
 
