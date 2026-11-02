@@ -40,7 +40,21 @@ If `som-otel` is not on npm yet, build it from a checkout and add the local path
 
 :::
 
-Som is published as an ES module with bundled TypeScript types. It needs a runtime with the Fetch API, which every current browser provides. It also runs on Node.js 20.19+ or 22.12+ when you want to send logs from scripts or tests.
+Som ships ES module, CommonJS, and browser (IIFE) builds with bundled TypeScript types. It needs a runtime with the Fetch API, which every current browser provides, and also runs on current Node.js releases when you want to send logs from scripts or tests.
+
+Without a bundler, load the minified IIFE build from a CDN. It exposes a global `Som`:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/som-otel"></script>
+<script>
+  const logger = Som.createSomLogger({
+    endpoint: 'https://collector.example.com/v1/logs',
+    serviceName: 'web-app',
+  })
+</script>
+```
+
+Pin an exact version in the URL for production, for example `som-otel@1.4.0`.
 
 ## Send your first log
 

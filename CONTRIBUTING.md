@@ -4,7 +4,7 @@ Participation in this project is governed by the [Code of Conduct](CODE_OF_CONDU
 
 ## Development
 
-Use nvm to install and select the Node.js version pinned in `.nvmrc`. The supported package runtime range is declared in `package.json`; use pnpm 8.6.12 for development. Install dependencies and run the full quality check before opening a pull request:
+Use nvm to install and select the Node.js version pinned in `.nvmrc`; use pnpm 8.6.12 for development. Install dependencies and run the full quality check before opening a pull request:
 
 ```sh
 nvm install
@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-Pull requests should target `main`. The Quality workflow runs formatting, lint, type, test, and build checks. Do not include collector credentials, access tokens, or real user log data in commits, tests, or issues.
+Pull requests should target `main`. The Quality workflow runs formatting, lint, type, test, build, and package checks (`pnpm pack:check`). The Bundle size workflow comments on each pull request with how the gzip size of the build changed. Do not include collector credentials, access tokens, or real user log data in commits, tests, or issues.
 
 ## Commit Messages
 
