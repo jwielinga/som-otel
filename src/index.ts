@@ -21,6 +21,7 @@ export type {
   SomLoggerRetryOptions,
   SomLoggerScope,
   SomOptions,
+  SomSignal,
   SpanContext,
   SpanKind,
   SpanLink,

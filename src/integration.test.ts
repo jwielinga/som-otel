@@ -362,6 +362,7 @@ describe('queue overflow', () => {
     expect(logger.droppedRecordCount).toBe(1)
     expect(events).toContainEqual({
       type: 'records-dropped',
+      signal: 'logs',
       reason: 'queue-full',
       totalDropped: 1,
     })
@@ -409,6 +410,7 @@ describe('partial success', () => {
     expect(events).toEqual([
       {
         type: 'partial-success',
+        signal: 'logs',
         rejectedLogRecords: 2,
         errorMessage: 'attribute too long',
       },

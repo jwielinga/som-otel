@@ -82,13 +82,19 @@ function createExporter(
     scope: options.scope,
     resourceSchemaUrl: options.resourceSchemaUrl,
     onPartialSuccess: ({ rejectedLogRecords, errorMessage }) =>
-      emit({ type: 'partial-success', rejectedLogRecords, errorMessage }),
+      emit({
+        type: 'partial-success',
+        signal: 'logs',
+        rejectedLogRecords,
+        errorMessage,
+      }),
   })
 }
 
 function createTraceExporter(
   options: SomLoggerOptions,
   endpoint: string,
+  emit: Emit,
 ): OtlpTransport<OtlpSpan, TracePartialSuccess> {
   const resourceAttributes = createResourceAttributes(options)
   const requestOptions = {
@@ -105,6 +111,13 @@ function createTraceExporter(
         createOtlpTracesRequest(resourceAttributes, spans, requestOptions),
       ),
     readPartialSuccess: readTracePartialSuccess,
+    onPartialSuccess: ({ rejectedSpans, errorMessage }) =>
+      emit({
+        type: 'partial-success',
+        signal: 'traces',
+        rejectedSpans,
+        errorMessage,
+      }),
   })
 }
 
@@ -134,8 +147,9 @@ function createBatcher<T>(
   emit: Emit,
   names: { owner: string; signal: 'log' | 'trace' },
 ): LogBatcher<T> {
+  const signal = names.signal === 'log' ? 'logs' : 'traces'
   const reportFailure = (items: readonly T[], error: unknown): never => {
-    emit({ type: 'export-failed', error, recordCount: items.length })
+    emit({ type: 'export-failed', signal, error, recordCount: items.length })
     throw error
   }
 
@@ -162,7 +176,12 @@ function createBatcher<T>(
       if (failure) throw failure.reason as unknown
     },
     onDropped: (totalDropped) =>
-      emit({ type: 'records-dropped', reason: 'queue-full', totalDropped }),
+      emit({
+        type: 'records-dropped',
+        signal,
+        reason: 'queue-full',
+        totalDropped,
+      }),
   })
 }
 
@@ -180,7 +199,11 @@ function createSpanBatcher(
   options: SomOptions,
   emit: Emit,
 ): LogBatcher<OtlpSpan> {
-  const exporter = createTraceExporter(options, resolveTracesEndpoint(options))
+  const exporter = createTraceExporter(
+    options,
+    resolveTracesEndpoint(options),
+    emit,
+  )
   return createBatcher(options, exporter, emit, {
     owner: 'SomTracer',
     signal: 'trace',
@@ -239,7 +262,12 @@ export function createSom(options: SomOptions): Som {
     new SomTracer(spanBatcher, {
       limits: resolveLimits(options.limits),
       onError: (error) =>
-        emit({ type: 'export-failed', error, recordCount: 1 }),
+        emit({
+          type: 'export-failed',
+          signal: 'traces',
+          error,
+          recordCount: 1,
+        }),
     }),
     flushOnPageUnload([logBatcher, spanBatcher]),
   )

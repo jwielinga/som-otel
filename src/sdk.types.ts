@@ -93,14 +93,33 @@ export type SomLoggerLimits = {
   linkCountLimit?: number
 }
 
+export type SomSignal = 'logs' | 'traces'
+
 export type SomDiagnosticEvent =
-  | { type: 'export-failed'; error: unknown; recordCount: number }
+  | {
+      type: 'export-failed'
+      signal: SomSignal
+      error: unknown
+      recordCount: number
+    }
   | {
       type: 'partial-success'
+      signal: 'logs'
       rejectedLogRecords: number
       errorMessage?: string
     }
-  | { type: 'records-dropped'; reason: 'queue-full'; totalDropped: number }
+  | {
+      type: 'partial-success'
+      signal: 'traces'
+      rejectedSpans: number
+      errorMessage?: string
+    }
+  | {
+      type: 'records-dropped'
+      signal: SomSignal
+      reason: 'queue-full'
+      totalDropped: number
+    }
 
 export type SomLoggerOptions = {
   endpoint: string
