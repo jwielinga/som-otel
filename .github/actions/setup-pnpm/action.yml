@@ -15,7 +15,7 @@ inputs:
     default: .
   install:
     description: Run pnpm install after setup.
-    default: "true"
+    default: 'true'
 runs:
   using: composite
   steps:

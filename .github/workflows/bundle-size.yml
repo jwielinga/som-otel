@@ -35,7 +35,7 @@ jobs:
           cache-dependency-path: |
             head/pnpm-lock.yaml
             base/pnpm-lock.yaml
-          install: "false"
+          install: 'false'
       - name: Build head
         working-directory: head
         run: pnpm install --frozen-lockfile --ignore-scripts && pnpm build
