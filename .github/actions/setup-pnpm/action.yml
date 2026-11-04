@@ -1,0 +1,33 @@
+name: Setup pnpm
+description: Install pnpm and Node.js with the pnpm store cached, then install dependencies.
+inputs:
+  node-version-file:
+    description: File containing the Node.js version.
+    default: .nvmrc
+  cache-dependency-path:
+    description: Lockfile path(s) used as the cache key.
+    default: pnpm-lock.yaml
+  package-json-file:
+    description: package.json whose packageManager field pins the pnpm version (relative to the workspace root).
+    default: package.json
+  working-directory:
+    description: Directory to run pnpm install in.
+    default: .
+  install:
+    description: Run pnpm install after setup.
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      with:
+        package_json_file: ${{ inputs.package-json-file }}
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: ${{ inputs.node-version-file }}
+        cache: pnpm
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+    - if: inputs.install == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: pnpm install --frozen-lockfile --ignore-scripts
