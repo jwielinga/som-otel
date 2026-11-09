@@ -5,7 +5,7 @@ title: Options
 
 # Options
 
-All options are fields of `SomLoggerOptions`, passed to `createSomLogger()`. `createSom()` takes `SomOptions`, which is the same plus `tracesEndpoint`, and applies every option to both logs and spans.
+All options are fields of `SomLoggerOptions`, passed to `createSomLogger()`. `createSom()` takes `SomOptions`, which is the same plus `tracesEndpoint` and `metricsEndpoint`, and applies every option to logs, spans, and metrics.
 
 ```ts
 import { createSomLogger, type SomLoggerOptions } from 'som-otel'
@@ -20,9 +20,10 @@ import { createSomLogger, type SomLoggerOptions } from 'som-otel'
 
 ## Traces (`createSom` only)
 
-| Option           | Type     | Default                                      | Description                                                                                                                      |
-| ---------------- | -------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `tracesEndpoint` | `string` | `endpoint` with trailing `/logs` → `/traces` | Complete OTLP/HTTP traces URL. Required when `endpoint` does not end in `/logs`. [Tracing](../guides/tracing.md#traces-endpoint) |
+| Option            | Type     | Default                                       | Description                                                                                                                        |
+| ----------------- | -------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `tracesEndpoint`  | `string` | `endpoint` with trailing `/logs` → `/traces`  | Complete OTLP/HTTP traces URL. Required when `endpoint` does not end in `/logs`. [Tracing](../guides/tracing.md#traces-endpoint)   |
+| `metricsEndpoint` | `string` | `endpoint` with trailing `/logs` → `/metrics` | Complete OTLP/HTTP metrics URL. Required when `endpoint` does not end in `/logs`. [Metrics](../guides/metrics.md#metrics-endpoint) |
 
 ## Identity and request
 

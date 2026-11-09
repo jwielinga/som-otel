@@ -1,0 +1,5 @@
+# Metrics are queued raw and collapsed to delta data points per batch
+
+Metrics reuse the log pipeline: every instrument call is one queued measurement, batched by the same `batch` thresholds, sent to its own derived `/metrics` endpoint (a trailing `/logs` becomes `/metrics`, or `metricsEndpoint`; extends ADR 0001). When a batch is sent, the encoder collapses it into delta data points, one per metric and attribute set, each spanning the first to the last measurement. Som sends delta only, so cumulative backends need the collector's `deltatocumulative` processor.
+
+We rejected the OTel SDK model (an in-memory aggregator exported on an interval) because it needs a second timer and lifecycle beside the batcher. We rejected one data point per call because delta points with equal timestamps and attributes are duplicates in the OTLP data model. The cost is that the aggregation window is the batch window, not a fixed interval, and that a measurement dropped from a full queue is lost rather than folded into running state. Instrument calls never throw, like `span.end()`.

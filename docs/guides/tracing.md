@@ -9,7 +9,7 @@ Som can also send OpenTelemetry **spans**, so one setup covers your logs and the
 
 ## Create a tracer
 
-`createSom()` returns a logger and a tracer that share one configuration:
+`createSom()` returns a logger, a tracer, and a [meter](./metrics.md) that share one configuration:
 
 ```ts
 import { createSom } from 'som-otel'
@@ -28,7 +28,7 @@ const { logger, tracer } = som
 
 Spans go to a separate URL. By default Som derives it from `endpoint` by replacing a trailing `/logs` with `/traces`, so `https://collector.example.com/v1/logs` becomes `https://collector.example.com/v1/traces`. A query string stays in place.
 
-Set `tracesEndpoint` to use any other URL. It is required when `endpoint` does not end in `/logs`; `createSom()` throws a `TypeError` otherwise.
+Set `tracesEndpoint` to use any other URL. It is required when `endpoint` does not end in `/logs`; `createSom()` throws a `TypeError` otherwise. Set [`metricsEndpoint`](./metrics.md#metrics-endpoint) as well in that case.
 
 ```ts
 const som = createSom({
@@ -138,7 +138,7 @@ await logger.error('Payment failed', { orderId: 'order-42' }, { span })
 
 ## Flushing and shutdown
 
-`som.flush()` and `som.shutdown()` handle logs and spans together. If both fail, the error is an `AggregateError`. `tracer.flush()` and `tracer.shutdown()` work on spans alone.
+`som.flush()` and `som.shutdown()` handle logs, spans, and metrics together. If more than one fails, the error is an `AggregateError`. `tracer.flush()` and `tracer.shutdown()` work on spans alone.
 
 After shutdown, `startSpan()` returns a span that is not recording. Spans still queued when the page is hidden are sent with `keepalive`, the same way as logs. See [Page unload](./page-unload.md).
 

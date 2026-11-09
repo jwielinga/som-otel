@@ -187,6 +187,7 @@ function encodeMetric(
 }
 
 // Collapses a batch of measurements into delta data points, one per metric and attribute set.
+// TODO(metrics): cumulative temporality, exponential histograms, and exemplars are not supported yet.
 export function createOtlpMetricsRequest(
   resourceAttributes: LogAttributes,
   measurements: readonly OtlpMeasurement[],

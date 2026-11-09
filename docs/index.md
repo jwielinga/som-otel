@@ -6,7 +6,7 @@ title: Introduction
 
 # Som
 
-Som (`som-otel`) is a small, browser-first TypeScript library that sends [OpenTelemetry](https://opentelemetry.io/) **logs** and **spans** to any collector that speaks OTLP/HTTP. It is a library, not an application: it has no UI, and it never collects anything on its own. Your code decides what to log and what to trace.
+Som (`som-otel`) is a small, browser-first TypeScript library that sends [OpenTelemetry](https://opentelemetry.io/) **logs**, **spans**, and **metrics** to any collector that speaks OTLP/HTTP. It is a library, not an application: it has no UI, and it never collects anything on its own. Your code decides what to log, trace, and measure.
 
 ```ts
 import { createSomLogger } from 'som-otel'
@@ -28,13 +28,14 @@ await logger.info('Checkout completed', { orderId: 'order-42', total: 12.5 })
 - **Rich records.** `Error` objects become `exception.*` attributes, trace ids correlate logs with spans, and timestamps have sub-millisecond precision. See [Logging errors](./guides/logging-errors.md) and [Trace correlation](./guides/trace-correlation.md).
 - **Payload control.** Resource and scope attributes, schema URLs, browser resource detection, gzip compression, and attribute limits. See [Resource and scope](./guides/resource-and-scope.md), [Compression](./guides/compression.md), and [Attribute limits](./guides/attribute-limits.md).
 - **Spans too.** `createSom()` returns a logger and a tracer. Start spans by hand, link logs to them, and send both signals through the same delivery pipeline. See [Tracing](./guides/tracing.md).
-- **Observability of the SDK itself.** An `onDiagnostic` callback reports failed exports, partial success, and dropped records. See [Diagnostics](./guides/diagnostics.md).
+- **Metrics too.** `createSom()` also returns a meter with counters, up-down counters, histograms, and gauges, sent as delta metrics to their own endpoint. See [Metrics](./guides/metrics.md).
+- **Observability of the SDK itself.** An `onDiagnostic` callback reports failed exports, partial success, invalid measurements, and dropped records. See [Diagnostics](./guides/diagnostics.md).
 - **Easy to test.** Inject your own `fetch` to run without a collector. See [Testing](./guides/testing.md).
 
 ## What Som is not
 
-- It sends **logs and spans**, not metrics.
-- It does not instrument anything automatically: no `console` capture, uncaught errors, navigation, or `fetch` spans. [Recipes](./guides/recipes.md) shows how to wire those up yourself.
+- It sends **logs, spans, and metrics**, nothing else.
+- It does not instrument anything automatically: no `console` capture, uncaught errors, navigation, or `fetch` spans, and no built-in metrics. [Recipes](./guides/recipes.md) shows how to wire those up yourself.
 - It does not keep logs or spans across page loads; queued items live in memory.
 - It sends OTLP **JSON** over HTTP, not protobuf or gRPC.
 

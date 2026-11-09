@@ -33,6 +33,7 @@ function normalizeBoundaries(
   return [...new Set(boundaries.filter(Number.isFinite))].sort((a, b) => a - b)
 }
 
+// TODO(metrics): observable instruments, views, and a metrics-only factory are not supported yet.
 export class SomMeter {
   private readonly batcher: LogBatcher<OtlpMeasurement>
   private readonly limits: OtlpLimits

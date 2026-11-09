@@ -60,6 +60,9 @@ service:
     traces:
       receivers: [otlp]
       exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      exporters: [debug]
 ```
 
 With this configuration, set Som's `endpoint` to `https://<collector-host>:4318/v1/logs`. Replace the `debug` exporter with the exporter for your backend.
@@ -69,6 +72,24 @@ For local development you can allow `http://localhost:*` origins, for example `a
 ## Traces
 
 The same OTLP/HTTP receiver serves traces at `/v1/traces`. Add a `traces` pipeline as shown above and Som's [derived traces endpoint](./tracing.md#traces-endpoint) matches it. CORS, headers, compression, and authentication work the same as for logs. If you send spans to a different URL, set `tracesEndpoint`.
+
+## Metrics
+
+The same receiver serves metrics at `/v1/metrics`. Add a `metrics` pipeline as shown above and Som's [derived metrics endpoint](./metrics.md#metrics-endpoint) matches it. If you send metrics to a different URL, set `metricsEndpoint`.
+
+Som sends metrics with **delta** temporality. Backends that only accept cumulative values, such as Prometheus, need the `deltatocumulative` processor in the metrics pipeline:
+
+```yaml
+processors:
+  deltatocumulative:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [deltatocumulative]
+      exporters: [otlphttp/prometheus]
+```
 
 ## Authentication
 
@@ -90,6 +111,7 @@ Som is tested against a real OpenTelemetry Collector (see [Contributing](../cont
 | Nothing arrives, CORS error in the console    | The collector does not allow your origin or a header Som sends.                               |
 | `OTLP log request failed: 404`                | Wrong `endpoint`. Som does not append `/v1/logs`.                                             |
 | `OTLP trace request failed: 404`              | Wrong `tracesEndpoint`, or no traces pipeline or receiver on the collector.                   |
+| `OTLP metric request failed: 404`             | Wrong `metricsEndpoint`, or no metrics pipeline or receiver on the collector.                 |
 | `OTLP log request failed: 400`                | The collector rejected the payload. Check the body and attribute values.                      |
 | `OTLP log request failed: 415`                | The receiver does not accept JSON. Enable the OTLP/HTTP receiver.                             |
 | Compression enabled and requests fail         | The collector or a proxy does not accept `Content-Encoding: gzip`, or CORS blocks the header. |

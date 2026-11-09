@@ -150,3 +150,72 @@ Som sends it to `https://collector.example.com/v1/traces`:
 | Dropped counts | `droppedAttributesCount`, `droppedEventsCount`, and `droppedLinksCount`, only when greater than zero. |
 
 A `200` response can carry `{"partialSuccess": {"rejectedSpans": "2", "errorMessage": "…"}}`, which becomes a `partial-success` diagnostic with `signal: 'traces'`.
+
+## Metrics
+
+Metrics use the same transport and encoding rules, posted to the metrics endpoint as an OTLP/JSON `ExportMetricsServiceRequest` with one `resourceMetrics` entry and one `scopeMetrics` entry. Every metric of the batch is in `metrics`.
+
+```ts
+const { meter } = createSom({
+  endpoint: 'https://collector.example.com/v1/logs',
+  serviceName: 'storefront',
+  detectResource: false,
+})
+
+const clicks = meter.createCounter('checkout.clicks', { unit: '{click}' })
+clicks.add(1, { button: 'pay' })
+clicks.add(2, { button: 'pay' })
+```
+
+Som sends it to `https://collector.example.com/v1/metrics`:
+
+```json
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "storefront" } }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": { "name": "som" },
+          "metrics": [
+            {
+              "name": "checkout.clicks",
+              "unit": "{click}",
+              "sum": {
+                "aggregationTemporality": 1,
+                "isMonotonic": true,
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      { "key": "button", "value": { "stringValue": "pay" } }
+                    ],
+                    "startTimeUnixNano": "1791201600000000000",
+                    "timeUnixNano": "1791201600000000000",
+                    "asInt": "3"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Item                     | Encoding                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Counter                  | A `sum` with `isMonotonic: true`.                                                                                               |
+| Up-down counter          | A `sum` with `isMonotonic: false`.                                                                                              |
+| Gauge                    | A `gauge` with the last value of the batch and no `startTimeUnixNano`.                                                          |
+| Histogram                | A `histogram` with `count`, `sum`, `min`, `max`, `bucketCounts`, and `explicitBounds`. `sum` is omitted after a negative value. |
+| `aggregationTemporality` | Always `1` (delta).                                                                                                             |
+| Values                   | `asInt` (a decimal string) when every value is a safe integer, otherwise `asDouble`.                                            |
+| Data points              | One per metric and attribute set in a batch. They cover the time from the first to the last measurement.                        |
+
+A `200` response can carry `{"partialSuccess": {"rejectedDataPoints": "2", "errorMessage": "…"}}`, which becomes a `partial-success` diagnostic with `signal: 'metrics'`.
