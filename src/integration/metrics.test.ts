@@ -491,6 +491,32 @@ describe('invalid measurements', () => {
     ])
   })
 
+  it.each(['counter', 'histogram'] as const)(
+    'rejects a non-finite %s aggregate',
+    async (kind) => {
+      const { som, collector, diagnostics } = setupWithDiagnostics()
+      const record =
+        kind === 'counter'
+          ? (value: number) => som.meter.createCounter('x').add(value)
+          : (value: number) => som.meter.createHistogram('x').record(value)
+
+      record(1e308)
+      record(1e308)
+
+      await expect(som.flush()).rejects.toThrow(
+        'Metric aggregate is not finite',
+      )
+      expect(collector.requests).toHaveLength(0)
+      expect(diagnostics).toContainEqual(
+        expect.objectContaining({
+          type: 'export-failed',
+          signal: 'metrics',
+          recordCount: 2,
+        }),
+      )
+    },
+  )
+
   it('accepts negative values where they are meaningful', async () => {
     const { som, collector, diagnostics } = setupWithDiagnostics()
 

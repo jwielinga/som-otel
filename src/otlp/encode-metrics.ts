@@ -95,6 +95,13 @@ function numberValue(
     : { asDouble: total }
 }
 
+function finiteAggregate(value: number): number {
+  if (!Number.isFinite(value)) {
+    throw new RangeError('Metric aggregate is not finite')
+  }
+  return value
+}
+
 // Buckets are upper-inclusive: a value on a bound belongs to the bucket that ends at it.
 function histogramValues(
   values: readonly number[],
@@ -108,13 +115,14 @@ function histogramValues(
     const index = bounds.findIndex((bound) => value <= bound)
     counts[index === -1 ? bounds.length : index]!++
   }
+  const sum = values.some((value) => value < 0)
+    ? undefined
+    : finiteAggregate(values.reduce((total, value) => total + value, 0))
 
   return {
     count: String(values.length),
     // OTLP: a sum is only meaningful when every value is non-negative.
-    ...(values.some((value) => value < 0)
-      ? {}
-      : { sum: values.reduce((total, value) => total + value, 0) }),
+    ...(sum === undefined ? {} : { sum }),
     bucketCounts: counts.map(String),
     explicitBounds: bounds,
     // A reduce, not a spread: a large batch would exceed the call argument limit.
@@ -172,7 +180,7 @@ function encodeMetric(
         attributes: attributesOf(s),
         startTimeUnixNano: s.start.toString(),
         timeUnixNano: s.end.toString(),
-        ...numberValue(s.total, s.allIntegers),
+        ...numberValue(finiteAggregate(s.total), s.allIntegers),
       })),
       aggregationTemporality: OTelAggregationTemporality.DELTA,
       isMonotonic: descriptor.kind === 'counter',
