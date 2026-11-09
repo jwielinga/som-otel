@@ -5,6 +5,9 @@ import { useLokiTail } from './loki'
 import { LogControls } from './LogControls'
 import { LogFeeds } from './LogFeeds'
 import { LoggerExample } from './LoggerExample'
+import { Activity, GitBranch } from 'lucide-react'
+import { TelemetryPanel } from './TelemetryPanel'
+import { metricActions, traceActions } from './telemetry-actions'
 import { todoTitles } from './log-presets'
 import type { SendLog, SentLog } from './types'
 
@@ -164,6 +167,22 @@ export function App() {
           onBurst={sendBurst}
           onException={sendException}
           failure={failedMessage}
+        />
+        <TelemetryPanel
+          id="metrics"
+          title="Make metrics"
+          icon={Activity}
+          actions={metricActions}
+          feedTitle="Sent metrics"
+          empty="Nothing sent yet. Metrics reach Prometheus; see the Browser Metrics dashboard."
+        />
+        <TelemetryPanel
+          id="traces"
+          title="Make traces"
+          icon={GitBranch}
+          actions={traceActions}
+          feedTitle="Sent traces"
+          empty="Nothing sent yet. Spans are discarded by Alloy's debug exporter; read them with `docker compose logs alloy`."
         />
         <LogFeeds
           sent={sent}

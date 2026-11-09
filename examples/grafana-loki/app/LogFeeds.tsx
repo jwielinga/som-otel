@@ -66,7 +66,7 @@ export function LogFeeds({
   )
 }
 
-function LogFeed({
+export function LogFeed({
   title,
   note,
   noteState,

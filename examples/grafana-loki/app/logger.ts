@@ -30,3 +30,24 @@ export const sendDuration = meter.createHistogram('demo.log.send.duration', {
   description: 'Time from calling the logger until the export finished',
   unit: 'ms',
 })
+
+export const buttonClicks = meter.createCounter('demo.button.clicks', {
+  description: 'Telemetry buttons clicked on the demo page',
+  unit: '{click}',
+})
+
+export const queueLength = meter.createUpDownCounter('demo.queue.length', {
+  description: 'Items waiting in the demo queue',
+  unit: '{item}',
+})
+
+export const memoryUsed = meter.createGauge('demo.memory.used', {
+  description: 'Made-up memory use of the demo page',
+  unit: 'By',
+})
+
+export const saveDuration = meter.createHistogram('demo.todo.save.duration', {
+  description: 'Made-up time to save a todo',
+  unit: 'ms',
+  boundaries: [50, 100, 250, 500, 1000, 2500],
+})

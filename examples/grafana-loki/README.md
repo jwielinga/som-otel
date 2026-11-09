@@ -12,7 +12,7 @@ From this directory:
 docker compose up --build
 ```
 
-Open the sample app at <http://localhost:8080>. Use the buttons to send React todo-list themed debug, info, warning, error, and fatal events. Each button waits for the export request to succeed. The "How to use the logger" panel at the bottom of the page shows the Som calls behind them.
+Open the sample app at <http://localhost:8080>. Use the buttons to send React todo-list themed debug, info, warning, error, and fatal events. Each button waits for the export request to succeed. The "Make metrics and traces" panel records a counter, an up-down counter, a gauge and a histogram, and sends a nested checkout trace and a failing trace; each action flushes and shows whether the export worked. Spans are discarded by Alloy's debug exporter, so read them with `docker compose logs alloy`. The "How to use the logger" panel at the bottom of the page shows the Som calls behind them.
 
 - Grafana: <http://localhost:3000> (`admin` / `som-demo-only`)
 - Browser Logs dashboard: <http://localhost:3000/d/som-browser-logs/browser-logs>
