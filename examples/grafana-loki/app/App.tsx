@@ -5,9 +5,11 @@ import { useLokiTail } from './loki'
 import { LogControls } from './LogControls'
 import { LogFeeds } from './LogFeeds'
 import { LoggerExample } from './LoggerExample'
-import { Activity, GitBranch } from 'lucide-react'
+import { Activity, GitBranch, ScrollText } from 'lucide-react'
+import { Tabs } from '@/components/ui/tabs'
+import { MetricsPanel } from './MetricsPanel'
 import { TelemetryPanel } from './TelemetryPanel'
-import { metricActions, traceActions } from './telemetry-actions'
+import { traceActions } from './telemetry-actions'
 import { todoTitles } from './log-presets'
 import type { SendLog, SentLog } from './types'
 
@@ -133,9 +135,10 @@ export function App() {
             <em>Watch it land.</em>
           </h1>
           <p className="lede">
-            Each button sends a real OpenTelemetry log with Som to Alloy, plus a
-            span and two metrics. The right column polls Loki, so you see the
-            log after it has been stored.
+            Pick a signal. Each button sends real OpenTelemetry data with Som to
+            Alloy: logs land in Loki, metrics in Prometheus, and spans in
+            Alloy's debug output. The stored column polls the backend, so you
+            see the data after it has been stored.
           </p>
           <nav className="dashboard-links" aria-label="Grafana dashboards">
             <a
@@ -162,33 +165,52 @@ export function App() {
           </nav>
         </section>
 
-        <LogControls
-          onSend={send}
-          onBurst={sendBurst}
-          onException={sendException}
-          failure={failedMessage}
-        />
-        <TelemetryPanel
-          id="metrics"
-          title="Make metrics"
-          icon={Activity}
-          actions={metricActions}
-          feedTitle="Sent metrics"
-          empty="Nothing sent yet. Metrics reach Prometheus; see the Browser Metrics dashboard."
-        />
-        <TelemetryPanel
-          id="traces"
-          title="Make traces"
-          icon={GitBranch}
-          actions={traceActions}
-          feedTitle="Sent traces"
-          empty="Nothing sent yet. Spans are discarded by Alloy's debug exporter; read them with `docker compose logs alloy`."
-        />
-        <LogFeeds
-          sent={sent}
-          lokiEntries={loki.entries}
-          lokiError={loki.error}
-          lokiUpdatedAt={loki.updatedAt}
+        <Tabs
+          label="Signals"
+          items={[
+            {
+              id: 'logs',
+              label: 'Logs',
+              icon: ScrollText,
+              content: (
+                <>
+                  <LogControls
+                    onSend={send}
+                    onBurst={sendBurst}
+                    onException={sendException}
+                    failure={failedMessage}
+                  />
+                  <LogFeeds
+                    sent={sent}
+                    lokiEntries={loki.entries}
+                    lokiError={loki.error}
+                    lokiUpdatedAt={loki.updatedAt}
+                  />
+                </>
+              ),
+            },
+            {
+              id: 'metrics',
+              label: 'Metrics',
+              icon: Activity,
+              content: <MetricsPanel />,
+            },
+            {
+              id: 'traces',
+              label: 'Traces',
+              icon: GitBranch,
+              content: (
+                <TelemetryPanel
+                  id="traces"
+                  title="Make traces"
+                  icon={GitBranch}
+                  actions={traceActions}
+                  feedTitle="Sent traces"
+                  empty="Nothing sent yet. Spans are discarded by Alloy's debug exporter; read them with `docker compose logs alloy`."
+                />
+              ),
+            },
+          ]}
         />
         <LoggerExample />
       </main>

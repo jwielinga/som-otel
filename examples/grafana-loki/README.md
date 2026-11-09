@@ -12,7 +12,13 @@ From this directory:
 docker compose up --build
 ```
 
-Open the sample app at <http://localhost:8080>. Use the buttons to send React todo-list themed debug, info, warning, error, and fatal events. Each button waits for the export request to succeed. The "Make metrics and traces" panel records a counter, an up-down counter, a gauge and a histogram, and sends a nested checkout trace and a failing trace; each action flushes and shows whether the export worked. Spans are discarded by Alloy's debug exporter, so read them with `docker compose logs alloy`. The "How to use the logger" panel at the bottom of the page shows the Som calls behind them.
+Open the sample app at <http://localhost:8080>. It has three tabs, one per signal:
+
+- **Logs:** buttons that send React todo-list themed debug, info, warning, error, and fatal events. Each button waits for the export request to succeed, and a second list polls Loki for what it stored.
+- **Metrics:** buttons that record a counter, an up-down counter, a gauge and a histogram. A second list polls Prometheus for the stored series.
+- **Traces:** buttons that send a nested checkout trace and a failing trace. Spans are discarded by Alloy's debug exporter, so read them with `docker compose logs alloy`.
+
+Metric and trace buttons flush after each action and show whether the export worked. The "How to use the logger" panel at the bottom of the page shows the Som calls behind them. The page reaches Loki and Prometheus through the dev server's `/loki` and `/prometheus` proxies.
 
 - Grafana: <http://localhost:3000> (`admin` / `som-demo-only`)
 - Browser Logs dashboard: <http://localhost:3000/d/som-browser-logs/browser-logs>

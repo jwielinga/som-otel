@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,14 @@ type TelemetryPanelProps = {
   actions: TelemetryAction[]
   feedTitle: string
   empty: string
+  // A second feed beside the sent one, for what a backend has stored.
+  stored?: {
+    title: string
+    note: string
+    noteState: 'sent' | 'failed'
+    empty: string
+    rows: ReactNode[]
+  }
 }
 
 export function TelemetryPanel({
@@ -32,6 +40,7 @@ export function TelemetryPanel({
   actions,
   feedTitle,
   empty,
+  stored,
 }: TelemetryPanelProps) {
   const [entries, setEntries] = useState<Entry[]>([])
   const nextId = useRef(0)
@@ -85,28 +94,40 @@ export function TelemetryPanel({
         ))}
       </div>
 
-      <LogFeed title={feedTitle} note="Som → Alloy" empty={empty}>
-        {entries.map((entry) => (
-          <li className="row" key={entry.id}>
-            <span className="message" title={entry.detail}>
-              {entry.label}
-              {entry.detail ? `: ${entry.detail}` : ''}
-            </span>
-            <Badge
-              variant={
-                entry.state === 'sent'
-                  ? 'success'
-                  : entry.state === 'failed'
-                    ? 'error'
-                    : 'muted'
-              }
-            >
-              {entry.state}
-            </Badge>
-            <time>{formatTime(entry.at)}</time>
-          </li>
-        ))}
-      </LogFeed>
+      <div className={stored ? 'feeds' : undefined}>
+        <LogFeed title={feedTitle} note="Som → Alloy" empty={empty}>
+          {entries.map((entry) => (
+            <li className="row" key={entry.id}>
+              <span className="message" title={entry.detail}>
+                {entry.label}
+                {entry.detail ? `: ${entry.detail}` : ''}
+              </span>
+              <Badge
+                variant={
+                  entry.state === 'sent'
+                    ? 'success'
+                    : entry.state === 'failed'
+                      ? 'error'
+                      : 'muted'
+                }
+              >
+                {entry.state}
+              </Badge>
+              <time>{formatTime(entry.at)}</time>
+            </li>
+          ))}
+        </LogFeed>
+        {stored && (
+          <LogFeed
+            title={stored.title}
+            note={stored.note}
+            noteState={stored.noteState}
+            empty={stored.empty}
+          >
+            {stored.rows}
+          </LogFeed>
+        )}
+      </div>
     </section>
   )
 }

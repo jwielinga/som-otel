@@ -18,11 +18,16 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 8080,
     strictPort: true,
-    // Lets the page query Loki without CORS.
+    // Lets the page query Loki and Prometheus without CORS.
     proxy: {
       '/loki/api': {
         target: process.env.LOKI_PROXY_TARGET ?? 'http://localhost:3100',
         changeOrigin: true,
+      },
+      '/prometheus/api': {
+        target: process.env.PROMETHEUS_PROXY_TARGET ?? 'http://localhost:9090',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/prometheus/, ''),
       },
     },
   },
