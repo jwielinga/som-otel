@@ -59,6 +59,7 @@ export function App() {
         // Passing the span links the log to it.
         await logger[severity](body, attributes, { span })
       }
+      logsSent.add(1, { severity })
       setSent((items) =>
         items.map((item) =>
           item.id === id ? { ...item, state: 'sent' } : item,
@@ -82,7 +83,6 @@ export function App() {
       )
     } finally {
       span.end()
-      logsSent.add(1, { severity })
       sendDuration.record(performance.now() - started, { severity })
     }
   }

@@ -10,6 +10,8 @@ export const som = createSom({
   serviceVersion: '0.1.0',
   resourceAttributes: {
     'deployment.environment.name': import.meta.env.MODE,
+    // Each page needs its own metric streams; deltatocumulative drops out-of-order points from a shared one.
+    'service.instance.id': crypto.randomUUID(),
   },
   // Demo values for instant feedback; the defaults (20 records, 5s, 3 attempts) suit production.
   batch: { maxBatchSize: 2, scheduledDelayMs: 250 },

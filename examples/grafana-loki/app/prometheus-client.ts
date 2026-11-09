@@ -40,16 +40,24 @@ export async function fetchPrometheusSamples(
   }
 
   const body = (await response.json()) as PrometheusResponse
-  return body.data.result
-    .map(({ metric, value: [seconds, value] }) => {
-      const labels = describeLabels(metric)
-      return {
-        key: `${metric.__name__}{${labels}}`,
-        name: metric.__name__ ?? 'unknown',
-        labels,
-        value: Number(value),
-        timestamp: new Date(seconds * 1000),
-      }
+  // Every page load has its own service.instance.id; add them up so each metric is one row.
+  const samples = new Map<string, PrometheusSample>()
+  for (const {
+    metric,
+    value: [seconds, value],
+  } of body.data.result) {
+    const labels = describeLabels(metric)
+    const key = `${metric.__name__}{${labels}}`
+    const known = samples.get(key)
+    samples.set(key, {
+      key,
+      name: metric.__name__ ?? 'unknown',
+      labels,
+      value: (known?.value ?? 0) + Number(value),
+      timestamp: new Date(
+        Math.max(known?.timestamp.getTime() ?? 0, seconds * 1000),
+      ),
     })
-    .sort((a, b) => a.key.localeCompare(b.key))
+  }
+  return [...samples.values()].sort((a, b) => a.key.localeCompare(b.key))
 }
