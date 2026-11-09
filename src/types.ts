@@ -405,6 +405,13 @@ export type SomDiagnosticEvent =
       errorMessage?: string
     }
   | {
+      type: 'invalid-measurement'
+      signal: 'metrics'
+      instrument: string
+      reason: 'negative-counter-value' | 'non-finite-value'
+      value: number
+    }
+  | {
       type: 'records-dropped'
       signal: SomSignal
       reason: 'queue-full'
@@ -597,8 +604,8 @@ export type SomLoggerInit = {
 
 export type SomMeterInit = {
   limits?: OtlpLimits
-  // Called when a measurement cannot be encoded; instrument calls themselves never throw.
-  onError?: (error: unknown) => void
+  // Instrument calls never throw; problems are reported here instead.
+  emit?: Emit
   onShutdown?: () => void
 }
 

@@ -398,3 +398,119 @@ describe('histogram metrics', () => {
     expect(collector.metrics).toHaveLength(2)
   })
 })
+
+describe('invalid measurements', () => {
+  function setupWithDiagnostics() {
+    const diagnostics: unknown[] = []
+    const result = setup({
+      batch: { maxBatchSize: 10 },
+      onDiagnostic: (event) => diagnostics.push(event),
+    })
+    return { ...result, diagnostics }
+  }
+
+  it('drops a negative counter value and reports it', async () => {
+    const { som, collector, diagnostics } = setupWithDiagnostics()
+
+    som.meter.createCounter('checkout.clicks').add(-1)
+    await som.flush()
+
+    expect(collector.metrics).toHaveLength(0)
+    expect(diagnostics).toEqual([
+      {
+        type: 'invalid-measurement',
+        signal: 'metrics',
+        instrument: 'checkout.clicks',
+        reason: 'negative-counter-value',
+        value: -1,
+      },
+    ])
+  })
+
+  it.each([NaN, Infinity, -Infinity])(
+    'drops %s on every instrument and reports it',
+    async (value) => {
+      const { som, collector, diagnostics } = setupWithDiagnostics()
+
+      som.meter.createCounter('a').add(value)
+      som.meter.createUpDownCounter('b').add(value)
+      som.meter.createGauge('c').record(value)
+      som.meter.createHistogram('d').record(value)
+      await som.flush()
+
+      expect(collector.metrics).toHaveLength(0)
+      expect(diagnostics).toMatchObject([
+        {
+          type: 'invalid-measurement',
+          instrument: 'a',
+          reason: 'non-finite-value',
+        },
+        {
+          type: 'invalid-measurement',
+          instrument: 'b',
+          reason: 'non-finite-value',
+        },
+        {
+          type: 'invalid-measurement',
+          instrument: 'c',
+          reason: 'non-finite-value',
+        },
+        {
+          type: 'invalid-measurement',
+          instrument: 'd',
+          reason: 'non-finite-value',
+        },
+      ])
+    },
+  )
+
+  it('still sends valid measurements around an invalid one', async () => {
+    const { som, collector } = setupWithDiagnostics()
+    const clicks = som.meter.createCounter('checkout.clicks')
+
+    clicks.add(1)
+    clicks.add(-5)
+    clicks.add(2)
+    await som.flush()
+
+    expect(collector.metrics[0]?.sum?.dataPoints).toMatchObject([
+      { asInt: '3' },
+    ])
+  })
+
+  it('accepts negative values where they are meaningful', async () => {
+    const { som, collector, diagnostics } = setupWithDiagnostics()
+
+    som.meter.createUpDownCounter('a').add(-1)
+    som.meter.createGauge('b').record(-1)
+    som.meter.createHistogram('c').record(-1)
+    await som.flush()
+
+    expect(diagnostics).toEqual([])
+    expect(collector.metrics).toHaveLength(3)
+  })
+
+  it('does not throw when the diagnostics callback throws', () => {
+    const { som } = setup({
+      onDiagnostic: () => {
+        throw new Error('boom')
+      },
+    })
+
+    expect(() => som.meter.createCounter('x').add(-1)).not.toThrow()
+  })
+
+  it('reports an attribute that cannot be encoded instead of throwing', async () => {
+    const { som, collector, diagnostics } = setupWithDiagnostics()
+
+    expect(() =>
+      som.meter.createCounter('x').add(1, { bad: NaN }),
+    ).not.toThrow()
+    await som.flush()
+
+    expect(collector.metrics).toHaveLength(0)
+    expect(diagnostics).toMatchObject([
+      { type: 'export-failed', signal: 'metrics' },
+    ])
+  })
+})

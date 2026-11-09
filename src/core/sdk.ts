@@ -292,16 +292,7 @@ export function createSom(options: SomOptions): Som {
           recordCount: 1,
         }),
     }),
-    new SomMeter(measurementBatcher, {
-      limits,
-      onError: (error) =>
-        emit({
-          type: 'export-failed',
-          signal: 'metrics',
-          error,
-          recordCount: 1,
-        }),
-    }),
+    new SomMeter(measurementBatcher, { limits, emit }),
     flushOnPageUnload([logBatcher, spanBatcher, measurementBatcher]),
   )
 }

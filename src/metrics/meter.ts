@@ -2,6 +2,7 @@ import type { LogBatcher } from '../transport/batcher.js'
 import { createOtlpMeasurement } from '../otlp/encode-metrics.js'
 import { DEFAULT_LIMITS } from '../otlp/otlp.constants.js'
 import type {
+  Emit,
   HistogramOptions,
   InstrumentOptions,
   MetricAttributes,
@@ -14,6 +15,17 @@ import { Counter, Gauge, Histogram, UpDownCounter } from './instruments.js'
 import type { Recorder } from './instruments.js'
 import { DEFAULT_HISTOGRAM_BOUNDARIES } from './metrics.constants.js'
 
+function invalidReason(
+  descriptor: MetricDescriptor,
+  value: number,
+): 'negative-counter-value' | 'non-finite-value' | undefined {
+  if (!Number.isFinite(value)) return 'non-finite-value'
+  if (descriptor.kind === 'counter' && value < 0) {
+    return 'negative-counter-value'
+  }
+  return undefined
+}
+
 // Bounds must be ascending and finite; anything else is dropped rather than rejected.
 function normalizeBoundaries(
   boundaries: readonly number[] = DEFAULT_HISTOGRAM_BOUNDARIES,
@@ -24,7 +36,7 @@ function normalizeBoundaries(
 export class SomMeter {
   private readonly batcher: LogBatcher<OtlpMeasurement>
   private readonly limits: OtlpLimits
-  private readonly onError: ((error: unknown) => void) | undefined
+  private readonly emit: Emit | undefined
   private readonly onShutdown: (() => void) | undefined
   private isShutdown = false
 
@@ -34,7 +46,7 @@ export class SomMeter {
   ) {
     this.batcher = batcher
     this.limits = options.limits ?? DEFAULT_LIMITS
-    this.onError = options.onError
+    this.emit = options.emit
     this.onShutdown = options.onShutdown
   }
 
@@ -94,6 +106,18 @@ export class SomMeter {
   ): void {
     if (this.isShutdown) return
 
+    const invalid = invalidReason(descriptor, value)
+    if (invalid !== undefined) {
+      this.emit?.({
+        type: 'invalid-measurement',
+        signal: 'metrics',
+        instrument: descriptor.name,
+        reason: invalid,
+        value,
+      })
+      return
+    }
+
     let measurement: OtlpMeasurement
     try {
       measurement = createOtlpMeasurement(
@@ -103,7 +127,12 @@ export class SomMeter {
         this.limits,
       )
     } catch (error) {
-      this.onError?.(error)
+      this.emit?.({
+        type: 'export-failed',
+        signal: 'metrics',
+        error,
+        recordCount: 1,
+      })
       return
     }
     void this.batcher.add(measurement).catch(() => undefined)
