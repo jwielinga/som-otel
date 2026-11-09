@@ -5,7 +5,7 @@ Som sends OpenTelemetry telemetry from a browser app to an OTLP/HTTP collector. 
 ## Language
 
 **Signal**:
-A kind of telemetry Som sends: logs or traces. Each signal has its own queue and its own collector URL.
+A kind of telemetry Som sends: logs, traces, or metrics. Each signal has its own queue and its own collector URL.
 _Avoid_: Stream, channel, pipeline
 
 **Log record**:
@@ -23,6 +23,18 @@ _Avoid_: Session, request
 **Trace context**:
 The trace id, span id, and trace flags that identify a place in a trace, used to continue a trace or to correlate a log record with a span.
 _Avoid_: Trace headers, correlation id
+
+**Metric**:
+A named measurement of the app over time, sent to the collector as data points.
+_Avoid_: Stat, counter (as a generic word)
+
+**Instrument**:
+The object the app calls to record measurements for one metric.
+_Avoid_: Meter (the meter is what creates instruments)
+
+**Data point**:
+One timestamped value recorded for a metric by a single call on an instrument, with attributes.
+_Avoid_: Sample, measurement, reading
 
 **Collector**:
 The server that receives what Som sends over OTLP/HTTP.

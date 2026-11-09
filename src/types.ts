@@ -313,7 +313,7 @@ export type SomLoggerLimits = {
   linkCountLimit?: number
 }
 
-export type SomSignal = 'logs' | 'traces'
+export type SomSignal = 'logs' | 'traces' | 'metrics'
 
 export type SomDiagnosticEvent =
   | {
@@ -332,6 +332,12 @@ export type SomDiagnosticEvent =
       type: 'partial-success'
       signal: 'traces'
       rejectedSpans: number
+      errorMessage?: string
+    }
+  | {
+      type: 'partial-success'
+      signal: 'metrics'
+      rejectedDataPoints: number
       errorMessage?: string
     }
   | {

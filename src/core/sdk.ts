@@ -25,7 +25,7 @@ import type {
   TracePartialSuccess,
 } from '../types.js'
 import { Som } from './som.js'
-import { resolveTracesEndpoint } from '../traces/traces-endpoint.js'
+import { resolveSignalEndpoint } from '../transport/signal-endpoint.js'
 import { SomTracer } from '../traces/tracer.js'
 import { DEFAULT_TIMEOUT_MS } from './core.constants.js'
 
@@ -101,7 +101,11 @@ function createTraceExporter(
 
   return new OtlpTransport<OtlpSpan, TracePartialSuccess>({
     ...createTransportOptions(options),
-    endpoint: resolveTracesEndpoint(options.endpoint, options.tracesEndpoint),
+    endpoint: resolveSignalEndpoint(
+      'traces',
+      options.endpoint,
+      options.tracesEndpoint,
+    ),
     signal: 'traces',
     encode: (spans) =>
       JSON.stringify(

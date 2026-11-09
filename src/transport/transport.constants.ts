@@ -4,6 +4,8 @@ export const DEFAULT_MAX_BATCH_SIZE = 20
 export const DEFAULT_MAX_QUEUE_SIZE = 1_000
 export const DEFAULT_SCHEDULED_DELAY_MS = 5_000
 
+export const LOGS_PATH_PATTERN = /^([^?#]*?)\/logs(\/?(?:[?#].*)?)$/
+
 // Browsers cap in-flight keepalive bodies at 64 KiB; stay below it.
 export const KEEPALIVE_MAX_BODY_BYTES = 63 * 1024
 
