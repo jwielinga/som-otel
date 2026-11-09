@@ -2,6 +2,14 @@
 
 Som is a lightweight browser-side TypeScript npm package for sending OpenTelemetry logs, spans, and metrics to an OTLP/HTTP collector. It is meant to provide a simple, elegant solution to debug sessions on your web app. It is not for tracking user behaviour or for marketing purposes.
 
+## Install
+
+```sh
+npm install som-otel
+```
+
+Other package managers work too: `pnpm add som-otel` or `yarn add som-otel`. The package is on [npm](https://www.npmjs.com/package/som-otel) and also published to [GitHub Packages](https://github.com/jwielinga/som-otel/pkgs/npm/som-otel) as `@jwielinga/som-otel`; see the [getting started guide](docs/getting-started.mdx) for that registry.
+
 ## Quick Start
 
 Som ships ES module, CommonJS, and minified browser (IIFE, global `Som`) builds; the IIFE is served at the package's CDN entry (`https://cdn.jsdelivr.net/npm/som-otel`).

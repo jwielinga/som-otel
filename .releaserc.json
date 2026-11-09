@@ -6,7 +6,9 @@
     ["@semantic-release/npm", { "npmPublish": false }],
     [
       "@semantic-release/exec",
-      { "publishCmd": "npm publish --provenance --access public" }
+      {
+        "publishCmd": "npm publish --provenance --access public && node scripts/publish-github-packages.mjs"
+      }
     ],
     "@semantic-release/github"
   ]
