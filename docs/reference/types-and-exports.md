@@ -51,8 +51,9 @@ The type `OTelSeverityNumber` is the union of these numbers.
 | `Counter`                 | The type `meter.createCounter` returns.                                |
 | `UpDownCounter`           | The type `meter.createUpDownCounter` returns.                          |
 | `Histogram`               | The type `meter.createHistogram` returns.                              |
-| `Gauge`                   | The type `meter.createGauge` returns.                                  |
-| `Span`                    | The type `startSpan` returns.                                          |
+| `Gauge`                   | The type `meter.createGauge` returns.                                  |     | `InstrumentOptions` | `description` and `unit` of an instrument. |
+| `HistogramOptions`        | `InstrumentOptions` plus `boundaries`.                                 |
+| `MetricAttributes`        | The attributes of an instrument call.                                  |     | `Span`              | The type `startSpan` returns.              |
 | `SomLoggerOptions`        | The argument of `createSomLogger`.                                     |
 | `SomOptions`              | The argument of `createSom`.                                           |
 | `SpanOptions`             | The options of `startSpan` and `trace`.                                |

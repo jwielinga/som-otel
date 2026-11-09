@@ -126,6 +126,19 @@ describe('counter metrics', () => {
     )
   })
 
+  it('merges two counters created with the same name into one metric', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+
+    som.meter.createCounter('x').add(1)
+    som.meter.createCounter('x').add(2)
+    await som.flush()
+
+    expect(collector.metrics).toHaveLength(1)
+    expect(collector.metrics[0]?.sum?.dataPoints).toMatchObject([
+      { asInt: '3' },
+    ])
+  })
+
   it('keeps separate metrics for separately named counters', async () => {
     const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
 

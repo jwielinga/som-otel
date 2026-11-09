@@ -3,6 +3,7 @@ import type {
   LogAttributes,
   MetricAttributes,
   MetricDescriptor,
+  MetricSeries,
   OTelJsonKeyValue,
   OTelJsonHistogramDataPoint,
   OTelJsonMetric,
@@ -31,16 +32,6 @@ export function createOtlpMeasurement(
     timeUnixNano: nowUnixNano(),
     attributes: encodeAttributes(attributes, limits).values,
   }
-}
-
-type Series = {
-  attributes: OTelJsonKeyValue[]
-  start: bigint
-  end: bigint
-  total: number
-  allIntegers: boolean
-  last: number
-  values: number[]
 }
 
 // Attribute order must not split a series.
@@ -73,7 +64,9 @@ function groupBy<T>(items: readonly T[], key: (item: T) => string): T[][] {
   return [...groups.values()]
 }
 
-function collapseSeries(measurements: readonly OtlpMeasurement[]): Series[] {
+function collapseSeries(
+  measurements: readonly OtlpMeasurement[],
+): MetricSeries[] {
   return groupBy(measurements, (m) => seriesKey(m.attributes)).map((group) => ({
     attributes: group[0]!.attributes,
     start: group.reduce(
@@ -124,8 +117,9 @@ function histogramValues(
       : { sum: values.reduce((total, value) => total + value, 0) }),
     bucketCounts: counts.map(String),
     explicitBounds: bounds,
-    min: Math.min(...values),
-    max: Math.max(...values),
+    // A reduce, not a spread: a large batch would exceed the call argument limit.
+    min: values.reduce((min, value) => Math.min(min, value)),
+    max: values.reduce((max, value) => Math.max(max, value)),
   }
 }
 
@@ -139,7 +133,7 @@ function encodeMetric(
     description: descriptor.description,
     unit: descriptor.unit,
   }
-  const attributesOf = (s: Series) =>
+  const attributesOf = (s: MetricSeries) =>
     s.attributes.length > 0 ? s.attributes : undefined
 
   if (descriptor.kind === 'histogram') {

@@ -9,10 +9,10 @@ import type {
   MetricDescriptor,
   OtlpLimits,
   OtlpMeasurement,
+  Recorder,
   SomMeterInit,
 } from '../types.js'
 import { Counter, Gauge, Histogram, UpDownCounter } from './instruments.js'
-import type { Recorder } from './instruments.js'
 import { DEFAULT_HISTOGRAM_BOUNDARIES } from './metrics.constants.js'
 
 function invalidReason(

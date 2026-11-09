@@ -1,54 +1,37 @@
-import type { MetricAttributes } from '../types.js'
+import type { MetricAttributes, Recorder } from '../types.js'
 
-export type Recorder = (value: number, attributes?: MetricAttributes) => void
-
-// Only ever increases; negative values are not valid.
-export class Counter {
-  private readonly record: Recorder
-
-  constructor(record: Recorder) {
-    this.record = record
-  }
-
-  add(value: number, attributes?: MetricAttributes): void {
-    this.record(value, attributes)
-  }
-}
-
-// Goes up and down, for example the length of a queue.
-export class UpDownCounter {
-  private readonly recorder: Recorder
+// Shared by every instrument: forwards each call to the meter.
+class Instrument {
+  protected readonly recorder: Recorder
 
   constructor(recorder: Recorder) {
     this.recorder = recorder
   }
+}
 
+// Only ever increases; negative values are not valid.
+export class Counter extends Instrument {
+  add(value: number, attributes?: MetricAttributes): void {
+    this.recorder(value, attributes)
+  }
+}
+
+// Goes up and down, for example the length of a queue.
+export class UpDownCounter extends Instrument {
   add(value: number, attributes?: MetricAttributes): void {
     this.recorder(value, attributes)
   }
 }
 
 // A current value, for example memory in use; a batch keeps only the last one.
-export class Gauge {
-  private readonly recorder: Recorder
-
-  constructor(recorder: Recorder) {
-    this.recorder = recorder
-  }
-
+export class Gauge extends Instrument {
   record(value: number, attributes?: MetricAttributes): void {
     this.recorder(value, attributes)
   }
 }
 
 // A distribution of values, for example request durations.
-export class Histogram {
-  private readonly recorder: Recorder
-
-  constructor(recorder: Recorder) {
-    this.recorder = recorder
-  }
-
+export class Histogram extends Instrument {
   record(value: number, attributes?: MetricAttributes): void {
     this.recorder(value, attributes)
   }

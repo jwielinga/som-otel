@@ -477,12 +477,26 @@ export type MetricDescriptor = InstrumentOptions & {
   boundaries?: readonly number[]
 }
 
+// What every instrument calls to record one value.
+export type Recorder = (value: number, attributes?: MetricAttributes) => void
+
 // One queued instrument call; the encoder collapses a batch of these into data points.
 export type OtlpMeasurement = {
   descriptor: MetricDescriptor
   value: number
   timeUnixNano: bigint
   attributes: OTelJsonKeyValue[]
+}
+
+// The measurements of one attribute set in a batch, reduced for encoding.
+export type MetricSeries = {
+  attributes: OTelJsonKeyValue[]
+  start: bigint
+  end: bigint
+  total: number
+  allIntegers: boolean
+  last: number
+  values: number[]
 }
 
 export type OtlpLimits = Required<SomLoggerLimits>
