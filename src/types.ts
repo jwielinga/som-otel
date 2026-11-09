@@ -243,12 +243,30 @@ export type OTelJsonGauge = {
   dataPoints?: OTelJsonNumberDataPoint[]
 }
 
+export type OTelJsonHistogramDataPoint = {
+  attributes?: OTelJsonKeyValue[]
+  startTimeUnixNano?: OTelJsonUint64
+  timeUnixNano?: OTelJsonUint64
+  count?: OTelJsonUint64
+  sum?: number
+  bucketCounts?: OTelJsonUint64[]
+  explicitBounds?: number[]
+  min?: number
+  max?: number
+}
+
+export type OTelJsonHistogram = {
+  dataPoints?: OTelJsonHistogramDataPoint[]
+  aggregationTemporality?: OTelAggregationTemporality
+}
+
 export type OTelJsonMetric = {
   name?: string
   description?: string
   unit?: string
   sum?: OTelJsonSum
   gauge?: OTelJsonGauge
+  histogram?: OTelJsonHistogram
 }
 
 export type OTelJsonScopeMetrics = {
@@ -438,11 +456,18 @@ export type InstrumentOptions = {
   unit?: string
 }
 
-export type MetricKind = 'counter' | 'up-down-counter' | 'gauge'
+export type MetricKind = 'counter' | 'up-down-counter' | 'gauge' | 'histogram'
+
+export type HistogramOptions = InstrumentOptions & {
+  // Upper-inclusive bucket bounds. Default: the OTel default bounds (0 to 10000 in milliseconds).
+  boundaries?: readonly number[]
+}
 
 export type MetricDescriptor = InstrumentOptions & {
   name: string
   kind: MetricKind
+  // Histograms only; already sorted and deduplicated.
+  boundaries?: readonly number[]
 }
 
 // One queued instrument call; the encoder collapses a batch of these into data points.

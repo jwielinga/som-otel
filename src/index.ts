@@ -4,7 +4,12 @@ export type { SomLogger } from './logs/logger.js'
 export type { Som } from './core/som.js'
 export type { SomTracer } from './traces/tracer.js'
 export type { SomMeter } from './metrics/meter.js'
-export type { Counter, Gauge, UpDownCounter } from './metrics/instruments.js'
+export type {
+  Counter,
+  Gauge,
+  Histogram,
+  UpDownCounter,
+} from './metrics/instruments.js'
 export type { Span } from './traces/span.js'
 export { traceContextFromApi } from './traces/trace-context.js'
 export {

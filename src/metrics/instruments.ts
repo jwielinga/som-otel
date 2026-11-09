@@ -40,3 +40,16 @@ export class Gauge {
     this.recorder(value, attributes)
   }
 }
+
+// A distribution of values, for example request durations.
+export class Histogram {
+  private readonly recorder: Recorder
+
+  constructor(recorder: Recorder) {
+    this.recorder = recorder
+  }
+
+  record(value: number, attributes?: MetricAttributes): void {
+    this.recorder(value, attributes)
+  }
+}

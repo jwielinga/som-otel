@@ -277,3 +277,124 @@ describe('instruments of different kinds', () => {
     ).toEqual([false, true])
   })
 })
+
+describe('histogram metrics', () => {
+  const defaultBounds = [
+    0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000,
+  ]
+
+  it('sends a delta histogram with the default explicit bounds', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+    const duration = som.meter.createHistogram('request.duration', {
+      unit: 'ms',
+    })
+
+    duration.record(3)
+    duration.record(5)
+    duration.record(120)
+    duration.record(20000)
+    await som.flush()
+
+    expect(collector.metrics[0]).toMatchObject({
+      name: 'request.duration',
+      unit: 'ms',
+      histogram: { aggregationTemporality: DELTA },
+    })
+    const [point] = collector.metrics[0]?.histogram?.dataPoints ?? []
+    expect(point?.explicitBounds).toEqual(defaultBounds)
+    expect(point).toMatchObject({
+      count: '4',
+      sum: 20128,
+      min: 3,
+      max: 20000,
+    })
+    // 3 and 5 share the (0, 5] bucket; 120 falls in (100, 250]; 20000 is past the last bound.
+    expect(point?.bucketCounts).toEqual([
+      '0',
+      '2',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '1',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '1',
+    ])
+  })
+
+  it('puts a value on a bound into the bucket that ends at it', async () => {
+    const { som, collector } = setup()
+
+    som.meter.createHistogram('size', { boundaries: [10, 20] }).record(10)
+    await som.flush()
+
+    const [point] = collector.metrics[0]?.histogram?.dataPoints ?? []
+    expect(point?.explicitBounds).toEqual([10, 20])
+    expect(point?.bucketCounts).toEqual(['1', '0', '0'])
+  })
+
+  it('sorts custom boundaries and ignores duplicates and non-finite ones', async () => {
+    const { som, collector } = setup()
+
+    som.meter
+      .createHistogram('size', { boundaries: [20, 10, 10, Infinity, NaN] })
+      .record(15)
+    await som.flush()
+
+    const [point] = collector.metrics[0]?.histogram?.dataPoints ?? []
+    expect(point?.explicitBounds).toEqual([10, 20])
+    expect(point?.bucketCounts).toEqual(['0', '1', '0'])
+  })
+
+  it('merges a batch into one data point per attribute set', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+    const duration = som.meter.createHistogram('request.duration')
+
+    duration.record(1, { route: '/a' })
+    duration.record(2, { route: '/a' })
+    duration.record(9, { route: '/b' })
+    await som.flush()
+
+    const points = collector.metrics[0]?.histogram?.dataPoints ?? []
+    expect(
+      points.map((point) => [
+        attributeOf(point.attributes, 'route'),
+        point.count,
+        point.sum,
+      ]),
+    ).toEqual([
+      [{ stringValue: '/a' }, '2', 3],
+      [{ stringValue: '/b' }, '1', 9],
+    ])
+  })
+
+  it('omits the sum when a negative value was recorded', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+    const delta = som.meter.createHistogram('delta')
+
+    delta.record(-4)
+    delta.record(2)
+    await som.flush()
+
+    const [point] = collector.metrics[0]?.histogram?.dataPoints ?? []
+    expect(point?.sum).toBeUndefined()
+    expect(point).toMatchObject({ count: '2', min: -4, max: 2 })
+  })
+
+  it('keeps histograms with different boundaries apart', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+
+    som.meter.createHistogram('x', { boundaries: [1] }).record(1)
+    som.meter.createHistogram('x', { boundaries: [2] }).record(1)
+    await som.flush()
+
+    expect(collector.metrics).toHaveLength(2)
+  })
+})

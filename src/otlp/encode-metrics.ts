@@ -4,6 +4,7 @@ import type {
   MetricAttributes,
   MetricDescriptor,
   OTelJsonKeyValue,
+  OTelJsonHistogramDataPoint,
   OTelJsonMetric,
   OTelJsonMetricsData,
   OTelJsonNumberDataPoint,
@@ -39,6 +40,7 @@ type Series = {
   total: number
   allIntegers: boolean
   last: number
+  values: number[]
 }
 
 // Attribute order must not split a series.
@@ -55,8 +57,9 @@ function metricKey({
   name,
   unit,
   description,
+  boundaries,
 }: MetricDescriptor): string {
-  return JSON.stringify([kind, name, unit, description])
+  return JSON.stringify([kind, name, unit, description, boundaries])
 }
 
 function groupBy<T>(items: readonly T[], key: (item: T) => string): T[][] {
@@ -86,6 +89,7 @@ function collapseSeries(measurements: readonly OtlpMeasurement[]): Series[] {
     last: group.reduce((latest, m) =>
       m.timeUnixNano >= latest.timeUnixNano ? m : latest,
     ).value,
+    values: group.map((m) => m.value),
   }))
 }
 
@@ -96,6 +100,33 @@ function numberValue(
   return allIntegers && Number.isSafeInteger(total)
     ? { asInt: String(total) }
     : { asDouble: total }
+}
+
+// Buckets are upper-inclusive: a value on a bound belongs to the bucket that ends at it.
+function histogramValues(
+  values: readonly number[],
+  bounds: number[],
+): Omit<
+  OTelJsonHistogramDataPoint,
+  'attributes' | 'startTimeUnixNano' | 'timeUnixNano'
+> {
+  const counts = new Array<number>(bounds.length + 1).fill(0)
+  for (const value of values) {
+    const index = bounds.findIndex((bound) => value <= bound)
+    counts[index === -1 ? bounds.length : index]!++
+  }
+
+  return {
+    count: String(values.length),
+    // OTLP: a sum is only meaningful when every value is non-negative.
+    ...(values.some((value) => value < 0)
+      ? {}
+      : { sum: values.reduce((total, value) => total + value, 0) }),
+    bucketCounts: counts.map(String),
+    explicitBounds: bounds,
+    min: Math.min(...values),
+    max: Math.max(...values),
+  }
 }
 
 function encodeMetric(
@@ -110,6 +141,22 @@ function encodeMetric(
   }
   const attributesOf = (s: Series) =>
     s.attributes.length > 0 ? s.attributes : undefined
+
+  if (descriptor.kind === 'histogram') {
+    const bounds = [...(descriptor.boundaries ?? [])]
+    return {
+      ...identity,
+      histogram: {
+        dataPoints: series.map((s): OTelJsonHistogramDataPoint => ({
+          attributes: attributesOf(s),
+          startTimeUnixNano: s.start.toString(),
+          timeUnixNano: s.end.toString(),
+          ...histogramValues(s.values, bounds),
+        })),
+        aggregationTemporality: OTelAggregationTemporality.DELTA,
+      },
+    }
+  }
 
   if (descriptor.kind === 'gauge') {
     return {
