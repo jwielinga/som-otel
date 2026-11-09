@@ -207,13 +207,13 @@ h1 em {
 }
 
 .tabs {
-  margin-top: 8px;
+  margin-top: 32px;
 }
 
 .tablist {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
 }
 
 .tab {
@@ -221,10 +221,11 @@ h1 em {
   align-items: center;
   gap: 8px;
   margin-bottom: -1px;
-  padding: 14px 18px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
+  padding: 12px 20px;
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: 6px 6px 0 0;
+  background: var(--card);
   color: var(--muted-foreground);
   font: inherit;
   font-size: 14px;
