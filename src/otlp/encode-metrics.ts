@@ -1,9 +1,11 @@
+import type { SeriesClock } from '../metrics/series-clock.js'
 import { nowUnixNano } from '../utils/clock.js'
 import type {
   LogAttributes,
   MetricAttributes,
   MetricDescriptor,
   MetricSeries,
+  OTelJsonAnyValue,
   OTelJsonKeyValue,
   OTelJsonHistogramDataPoint,
   OTelJsonMetric,
@@ -20,37 +22,69 @@ import {
 } from './encode-logs.js'
 import { DEFAULT_LIMITS, OTelAggregationTemporality } from './otlp.constants.js'
 
+function byKey(a: OTelJsonKeyValue, b: OTelJsonKeyValue): number {
+  return a.key < b.key ? -1 : a.key > b.key ? 1 : 0
+}
+
+// Map entries are ordered at every depth; array elements keep their order.
+function canonicalValue(
+  value: OTelJsonAnyValue | undefined,
+): OTelJsonAnyValue | undefined {
+  if (value?.kvlistValue) {
+    return {
+      kvlistValue: {
+        values: canonicalAttributes(value.kvlistValue.values ?? []),
+      },
+    }
+  }
+  if (value?.arrayValue) {
+    return {
+      arrayValue: {
+        values: (value.arrayValue.values ?? []).map(
+          (item) => canonicalValue(item) ?? item,
+        ),
+      },
+    }
+  }
+  return value
+}
+
+function canonicalAttributes(
+  attributes: OTelJsonKeyValue[],
+): OTelJsonKeyValue[] {
+  return [...attributes]
+    .sort(byKey)
+    .map(({ key, value }) => ({ key, value: canonicalValue(value) }))
+}
+
+// Attribute order must not split a series.
+export function seriesKey(attributes: OTelJsonKeyValue[]): string {
+  return JSON.stringify(canonicalAttributes(attributes))
+}
+
+// Instruments of one kind, name and unit are one metric, whatever their description.
+export function metricKey({ kind, name, unit }: MetricDescriptor): string {
+  return JSON.stringify([kind, name, unit])
+}
+
 export function createOtlpMeasurement(
   descriptor: MetricDescriptor,
   value: number,
   attributes: MetricAttributes,
+  clock: SeriesClock,
   limits: OtlpLimits = DEFAULT_LIMITS,
 ): OtlpMeasurement {
+  const encoded = encodeAttributes(attributes, limits).values
+  const timeUnixNano = nowUnixNano()
+  const seriesId = `${metricKey(descriptor)}|${seriesKey(encoded)}`
+
   return {
     descriptor,
     value,
-    timeUnixNano: nowUnixNano(),
-    attributes: encodeAttributes(attributes, limits).values,
+    startTimeUnixNano: clock.advance(seriesId, timeUnixNano),
+    timeUnixNano,
+    attributes: encoded,
   }
-}
-
-// Attribute order must not split a series.
-function seriesKey(attributes: OTelJsonKeyValue[]): string {
-  return JSON.stringify(
-    [...attributes].sort((a, b) =>
-      a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
-    ),
-  )
-}
-
-function metricKey({
-  kind,
-  name,
-  unit,
-  description,
-  boundaries,
-}: MetricDescriptor): string {
-  return JSON.stringify([kind, name, unit, description, boundaries])
 }
 
 function groupBy<T>(items: readonly T[], key: (item: T) => string): T[][] {
@@ -70,8 +104,8 @@ function collapseSeries(
   return groupBy(measurements, (m) => seriesKey(m.attributes)).map((group) => ({
     attributes: group[0]!.attributes,
     start: group.reduce(
-      (min, m) => (m.timeUnixNano < min ? m.timeUnixNano : min),
-      group[0]!.timeUnixNano,
+      (min, m) => (m.startTimeUnixNano < min ? m.startTimeUnixNano : min),
+      group[0]!.startTimeUnixNano,
     ),
     end: group.reduce(
       (max, m) => (m.timeUnixNano > max ? m.timeUnixNano : max),

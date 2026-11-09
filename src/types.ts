@@ -412,6 +412,12 @@ export type SomDiagnosticEvent =
       value: number
     }
   | {
+      type: 'instrument-conflict'
+      signal: 'metrics'
+      instrument: string
+      reason: 'boundaries-differ'
+    }
+  | {
       type: 'records-dropped'
       signal: SomSignal
       reason: 'queue-full'
@@ -484,6 +490,8 @@ export type Recorder = (value: number, attributes?: MetricAttributes) => void
 export type OtlpMeasurement = {
   descriptor: MetricDescriptor
   value: number
+  // Where this series' previous measurement ended; the window is (start, time].
+  startTimeUnixNano: bigint
   timeUnixNano: bigint
   attributes: OTelJsonKeyValue[]
 }

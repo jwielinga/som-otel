@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { SomDiagnosticEvent } from '../types.js'
 import { attributeOf, setupSom as setup } from '../test-support/som.js'
 
 // Every test builds the SDK through createSom and observes it only via the collector.
@@ -401,14 +402,183 @@ describe('histogram metrics', () => {
     expect(point).toMatchObject({ count: '2', min: -4, max: 2 })
   })
 
-  it('keeps histograms with different boundaries apart', async () => {
-    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+  it('merges histograms with the same name and uses the first boundaries', async () => {
+    const events: SomDiagnosticEvent[] = []
+    const { som, collector } = setup({
+      batch: { maxBatchSize: 10 },
+      onDiagnostic: (event) => events.push(event),
+    })
 
     som.meter.createHistogram('x', { boundaries: [1] }).record(1)
-    som.meter.createHistogram('x', { boundaries: [2] }).record(1)
+    som.meter.createHistogram('x', { boundaries: [2] }).record(3)
+    await som.flush()
+
+    expect(collector.metrics).toHaveLength(1)
+    const [point] = collector.metrics[0]?.histogram?.dataPoints ?? []
+    expect(point).toMatchObject({
+      count: '2',
+      explicitBounds: [1],
+      bucketCounts: ['1', '1'],
+    })
+    expect(events).toEqual([
+      {
+        type: 'instrument-conflict',
+        signal: 'metrics',
+        instrument: 'x',
+        reason: 'boundaries-differ',
+      },
+    ])
+  })
+
+  it('keeps the first description when the same instrument is described twice', async () => {
+    const events: SomDiagnosticEvent[] = []
+    const { som, collector } = setup({
+      batch: { maxBatchSize: 10 },
+      onDiagnostic: (event) => events.push(event),
+    })
+
+    som.meter.createCounter('x', { description: 'first' }).add(1)
+    som.meter.createCounter('x', { description: 'second' }).add(1)
+    await som.flush()
+
+    expect(collector.metrics).toHaveLength(1)
+    expect(collector.metrics[0]?.description).toBe('first')
+    expect(events).toEqual([])
+  })
+
+  it('keeps instruments with the same name but another unit apart', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+
+    som.meter.createCounter('x', { unit: 'a' }).add(1)
+    som.meter.createCounter('x', { unit: 'b' }).add(1)
     await som.flush()
 
     expect(collector.metrics).toHaveLength(2)
+  })
+
+  it('treats nested attribute maps with the same entries as one series', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+    const clicks = som.meter.createCounter('checkout.clicks')
+
+    clicks.add(1, { context: { a: 1, b: 2 } })
+    clicks.add(1, { context: { b: 2, a: 1 } })
+    clicks.add(1, { list: [{ a: 1, b: 2 }] })
+    clicks.add(1, { list: [{ b: 2, a: 1 }] })
+    await som.flush()
+
+    expect(collector.metrics[0]?.sum?.dataPoints).toMatchObject([
+      { asInt: '2' },
+      { asInt: '2' },
+    ])
+  })
+
+  it('keeps array element order significant in a series', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+    const clicks = som.meter.createCounter('checkout.clicks')
+
+    clicks.add(1, { list: [1, 2] })
+    clicks.add(1, { list: [2, 1] })
+    await som.flush()
+
+    expect(collector.metrics[0]?.sum?.dataPoints).toHaveLength(2)
+  })
+})
+
+describe('delta windows', () => {
+  const T0 = Date.parse('2026-10-05T12:00:00.000Z')
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function nano(offsetMs: number): string {
+    return String(BigInt(T0 + offsetMs) * 1_000_000n)
+  }
+
+  function windows(collector: ReturnType<typeof setup>['collector']) {
+    return collector.metrics.flatMap((metric) =>
+      (metric.sum?.dataPoints ?? metric.histogram?.dataPoints ?? []).map(
+        (point) => [point.startTimeUnixNano, point.timeUnixNano],
+      ),
+    )
+  }
+
+  it('starts each batch where the previous batch of the same series ended', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    vi.setSystemTime(T0)
+    const { som, collector } = setup()
+    const clicks = som.meter.createCounter('checkout.clicks')
+
+    clicks.add(1)
+    await som.flush()
+    vi.setSystemTime(T0 + 1000)
+    clicks.add(1)
+    await som.flush()
+    vi.setSystemTime(T0 + 1500)
+    clicks.add(1)
+    await som.flush()
+
+    expect(windows(collector)).toEqual([
+      [nano(0), nano(0)],
+      [nano(0), nano(1000)],
+      [nano(1000), nano(1500)],
+    ])
+  })
+
+  it('does not overlap windows when measurements share a clock tick', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    vi.setSystemTime(T0)
+    const { som, collector } = setup()
+    const clicks = som.meter.createCounter('checkout.clicks')
+
+    clicks.add(1)
+    clicks.add(1)
+    await som.flush()
+
+    expect(windows(collector)).toEqual([
+      [nano(0), nano(0)],
+      [nano(0), nano(0)],
+    ])
+  })
+
+  it('covers the gap before a batch that holds several measurements', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    vi.setSystemTime(T0)
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+    const clicks = som.meter.createCounter('checkout.clicks')
+
+    clicks.add(1)
+    await som.flush()
+    vi.setSystemTime(T0 + 400)
+    clicks.add(1)
+    vi.setSystemTime(T0 + 900)
+    clicks.add(1)
+    await som.flush()
+
+    expect(windows(collector)).toEqual([
+      [nano(0), nano(0)],
+      [nano(0), nano(900)],
+    ])
+  })
+
+  it('keeps a separate window for every attribute set and histogram', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    vi.setSystemTime(T0)
+    const { som, collector } = setup()
+    const duration = som.meter.createHistogram('request.duration')
+
+    duration.record(1, { route: '/a' })
+    vi.setSystemTime(T0 + 1000)
+    duration.record(1, { route: '/b' })
+    vi.setSystemTime(T0 + 2000)
+    duration.record(1, { route: '/a' })
+    await som.flush()
+
+    expect(windows(collector)).toEqual([
+      [nano(0), nano(0)],
+      [nano(1000), nano(1000)],
+      [nano(0), nano(2000)],
+    ])
   })
 })
 

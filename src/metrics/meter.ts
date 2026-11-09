@@ -1,5 +1,5 @@
 import type { LogBatcher } from '../transport/batcher.js'
-import { createOtlpMeasurement } from '../otlp/encode-metrics.js'
+import { createOtlpMeasurement, metricKey } from '../otlp/encode-metrics.js'
 import { DEFAULT_LIMITS } from '../otlp/otlp.constants.js'
 import type {
   Emit,
@@ -14,6 +14,7 @@ import type {
 } from '../types.js'
 import { Counter, Gauge, Histogram, UpDownCounter } from './instruments.js'
 import { DEFAULT_HISTOGRAM_BOUNDARIES } from './metrics.constants.js'
+import { SeriesClock } from './series-clock.js'
 
 function invalidReason(
   descriptor: MetricDescriptor,
@@ -33,12 +34,22 @@ function normalizeBoundaries(
   return [...new Set(boundaries.filter(Number.isFinite))].sort((a, b) => a - b)
 }
 
+function sameBoundaries(
+  a: readonly number[] = [],
+  b: readonly number[] = [],
+): boolean {
+  return a.length === b.length && a.every((bound, index) => bound === b[index])
+}
+
 // TODO(metrics): observable instruments, views, and a metrics-only factory are not supported yet.
 export class SomMeter {
   private readonly batcher: LogBatcher<OtlpMeasurement>
   private readonly limits: OtlpLimits
   private readonly emit: Emit | undefined
   private readonly onShutdown: (() => void) | undefined
+  private readonly clock = new SeriesClock()
+  // The first instrument of a kind, name and unit defines the metric for all of them.
+  private readonly descriptors = new Map<string, MetricDescriptor>()
   private isShutdown = false
 
   constructor(
@@ -85,8 +96,28 @@ export class SomMeter {
     )
   }
 
-  private recorder(descriptor: MetricDescriptor): Recorder {
+  private recorder(requested: MetricDescriptor): Recorder {
+    const descriptor = this.register(requested)
     return (value, attributes) => this.measure(descriptor, value, attributes)
+  }
+
+  private register(requested: MetricDescriptor): MetricDescriptor {
+    const key = metricKey(requested)
+    const known = this.descriptors.get(key)
+    if (known === undefined) {
+      this.descriptors.set(key, requested)
+      return requested
+    }
+
+    if (!sameBoundaries(known.boundaries, requested.boundaries)) {
+      this.emit?.({
+        type: 'instrument-conflict',
+        signal: 'metrics',
+        instrument: requested.name,
+        reason: 'boundaries-differ',
+      })
+    }
+    return known
   }
 
   flush(): Promise<void> {
@@ -125,6 +156,7 @@ export class SomMeter {
         descriptor,
         value,
         attributes,
+        this.clock,
         this.limits,
       )
     } catch (error) {

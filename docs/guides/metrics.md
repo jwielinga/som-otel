@@ -80,7 +80,11 @@ Som drops a value instead of sending something a collector may reject, and repor
 
 Without `boundaries`, a histogram uses the OpenTelemetry defaults: `0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000`. Buckets are upper-inclusive, so a value of `5` counts in the bucket that ends at `5`.
 
-Custom `boundaries` are sorted, and duplicates and non-finite numbers are ignored. Two histograms with the same name but different boundaries are sent as separate metrics.
+Custom `boundaries` are sorted, and duplicates and non-finite numbers are ignored.
+
+### Instruments with the same name
+
+Instruments of the same kind, name and unit are one metric: their measurements are merged, and the first instrument's `description` and `boundaries` apply. If a later histogram asks for other `boundaries`, Som keeps the first and reports an `instrument-conflict` diagnostic. Use another name for a histogram that needs other boundaries. A different kind or unit makes a different metric.
 
 ## How measurements are sent
 
@@ -90,9 +94,9 @@ Each call is queued like a log record, and the queue is batched with the same `b
 - A histogram sends the count, sum, min, max and bucket counts.
 - A gauge sends only the last value.
 
-Each delta data point covers the time from the first to the last measurement in the batch. Som only sends delta temporality, so a backend that needs cumulative values, such as Prometheus, needs the collector's `deltatocumulative` processor. See [Collector setup](./collector-setup.md#metrics).
+Each delta data point covers the time since the previous measurement of the same series, up to the last measurement in the batch. Consecutive batches of a series therefore meet without gaps or overlap; the very first measurement of a series has a zero-length window. Som keeps one timestamp per series in memory, so keep attribute values low-cardinality. Som only sends delta temporality, so a backend that needs cumulative values, such as Prometheus, needs the collector's `deltatocumulative` processor. See [Collector setup](./collector-setup.md#metrics).
 
-A histogram that recorded a negative value omits its `sum`, as OTLP requires.
+A histogram that recorded a negative value omits its `sum`, as OTLP requires. A counter or histogram total that overflows to infinity fails the export, because JSON cannot carry it.
 
 ## Flushing and shutdown
 

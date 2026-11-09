@@ -208,14 +208,14 @@ Som sends it to `https://collector.example.com/v1/metrics`:
 }
 ```
 
-| Item                     | Encoding                                                                                                                        |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Counter                  | A `sum` with `isMonotonic: true`.                                                                                               |
-| Up-down counter          | A `sum` with `isMonotonic: false`.                                                                                              |
-| Gauge                    | A `gauge` with the last value of the batch and no `startTimeUnixNano`.                                                          |
-| Histogram                | A `histogram` with `count`, `sum`, `min`, `max`, `bucketCounts`, and `explicitBounds`. `sum` is omitted after a negative value. |
-| `aggregationTemporality` | Always `1` (delta).                                                                                                             |
-| Values                   | `asInt` (a decimal string) when every value is a safe integer, otherwise `asDouble`.                                            |
-| Data points              | One per metric and attribute set in a batch. They cover the time from the first to the last measurement.                        |
+| Item                     | Encoding                                                                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Counter                  | A `sum` with `isMonotonic: true`.                                                                                                         |
+| Up-down counter          | A `sum` with `isMonotonic: false`.                                                                                                        |
+| Gauge                    | A `gauge` with the last value of the batch and no `startTimeUnixNano`.                                                                    |
+| Histogram                | A `histogram` with `count`, `sum`, `min`, `max`, `bucketCounts`, and `explicitBounds`. `sum` is omitted after a negative value.           |
+| `aggregationTemporality` | Always `1` (delta).                                                                                                                       |
+| Values                   | `asInt` (a decimal string) when every value is a safe integer, otherwise `asDouble`.                                                      |
+| Data points              | One per metric and attribute set in a batch. They cover the time since the series' previous measurement, up to its last one in the batch. |
 
 A `200` response can carry `{"partialSuccess": {"rejectedDataPoints": "2", "errorMessage": "…"}}`, which becomes a `partial-success` diagnostic with `signal: 'metrics'`.

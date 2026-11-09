@@ -35,6 +35,9 @@ const logger = createSomLogger({
           event.reason,
         )
         break
+      case 'instrument-conflict':
+        console.warn(`${event.instrument}: ${event.reason}`)
+        break
       case 'records-dropped':
         console.warn(
           `Queue full, ${event.totalDropped} ${event.signal} dropped so far`,
@@ -55,6 +58,7 @@ const logger = createSomLogger({
 | `partial-success`     | The collector accepted a request but rejected some items.    | `signal`, `errorMessage?`, and `rejectedLogRecords` (logs), `rejectedSpans` (traces), or `rejectedDataPoints` (metrics) |
 | `records-dropped`     | The queue was full and an item was dropped.                  | `signal`, `reason` (`'queue-full'`), `totalDropped`                                                                     |
 | `invalid-measurement` | An instrument call was dropped because its value is invalid. | `signal` (`'metrics'`), `instrument`, `reason` (`'negative-counter-value'` or `'non-finite-value'`), `value`            |
+| `instrument-conflict` | A second instrument asked for other histogram boundaries.    | `signal` (`'metrics'`), `instrument`, `reason` (`'boundaries-differ'`)                                                  |
 
 `export-failed` fires for each failed batch, including page-unload sends, and also when a span or measurement cannot be encoded (`recordCount` is `1`). `records-dropped` fires once per dropped item, with a running total for that signal.
 
