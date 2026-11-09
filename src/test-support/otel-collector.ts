@@ -67,6 +67,9 @@ service:
     logs:
       receivers: [otlp]
       exporters: [otlphttp]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlphttp]
 `
 }
 

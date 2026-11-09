@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { OtlpExportError } from '../transport/http-exporter.js'
 import type {
   OTelJsonLogRecord,
+  OTelJsonMetric,
   OTelJsonResource,
   OTelJsonSpan,
   SomDiagnosticEvent,
@@ -72,6 +73,31 @@ function forwardedLogs(
     .flatMap(({ resource, scopeLogs }) =>
       scopeLogs.flatMap(({ logRecords }) =>
         logRecords.map((item) => ({ resource, item })),
+      ),
+    )
+}
+
+function forwardedMetrics(
+  forwarded: ForwardedExport[],
+  service: string,
+): Array<Forwarded<OTelJsonMetric>> {
+  return forwarded
+    .filter((entry) => entry.path === '/v1/metrics')
+    .flatMap(
+      (entry) =>
+        (
+          entry.body as {
+            resourceMetrics?: Array<{
+              resource: OTelJsonResource
+              scopeMetrics: Array<{ metrics: OTelJsonMetric[] }>
+            }>
+          }
+        ).resourceMetrics ?? [],
+    )
+    .filter(({ resource }) => serviceName(resource) === service)
+    .flatMap(({ resource, scopeMetrics }) =>
+      scopeMetrics.flatMap(({ metrics }) =>
+        metrics.map((item) => ({ resource, item })),
       ),
     )
 }
@@ -361,6 +387,54 @@ describe.skipIf(!dockerAvailable)('real OpenTelemetry Collector', () => {
     expect(
       forwardedSpans(collector.forwarded, service)[0]?.item.links,
     ).toBeUndefined()
+  })
+
+  it('accepts counters, gauges and histograms as delta metrics', async () => {
+    const service = 'collector-test-metrics'
+    const { som, diagnostics } = setup(service)
+
+    const clicks = som.meter.createCounter('checkout.clicks', {
+      unit: '{click}',
+    })
+    clicks.add(1, { button: 'pay' })
+    clicks.add(2, { button: 'pay' })
+    som.meter.createUpDownCounter('queue.length').add(-3)
+    som.meter.createGauge('memory.used', { unit: 'By' }).record(0.5)
+    som.meter
+      .createHistogram('request.duration', {
+        unit: 'ms',
+        boundaries: [10, 100],
+      })
+      .record(42)
+    await som.flush()
+
+    await collector.waitFor(
+      (forwarded) => forwardedMetrics(forwarded, service).length === 4,
+    )
+    const byName = new Map(
+      forwardedMetrics(collector.forwarded, service).map(({ item }) => [
+        item.name,
+        item,
+      ]),
+    )
+
+    expect(diagnostics).toEqual([])
+    expect(byName.get('checkout.clicks')?.sum).toMatchObject({
+      aggregationTemporality: 1,
+      isMonotonic: true,
+      dataPoints: [{ asInt: '3' }],
+    })
+    // The collector omits a false isMonotonic from its JSON.
+    expect(byName.get('queue.length')?.sum?.isMonotonic).toBeUndefined()
+    expect(byName.get('queue.length')?.sum).toMatchObject({
+      dataPoints: [{ asInt: '-3' }],
+    })
+    expect(byName.get('memory.used')?.gauge?.dataPoints).toMatchObject([
+      { asDouble: 0.5 },
+    ])
+    expect(byName.get('request.duration')?.histogram?.dataPoints).toMatchObject(
+      [{ count: '1', sum: 42, bucketCounts: ['0', '1', '0'] }],
+    )
   })
 
   it('reports a wrong endpoint as a failed export', async () => {
