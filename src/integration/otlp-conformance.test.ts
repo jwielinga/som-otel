@@ -608,6 +608,28 @@ describe('metrics: input to output', () => {
     })
   })
 
+  it('keeps every request valid across consecutive batches of a series', async () => {
+    const { som, collector } = setupSom()
+    const clicks = som.meter.createCounter('checkout.clicks')
+    const duration = som.meter.createHistogram('request.duration')
+
+    for (const offsetMs of [0, 2000, 4000]) {
+      vi.setSystemTime(new Date(NOW).getTime() + offsetMs)
+      clicks.add(1, { button: 'pay' })
+      duration.record(offsetMs, { route: '/cart' })
+      await som.flush()
+    }
+
+    expect(collector.requests.length).toBeGreaterThan(2)
+    for (const request of collector.requests) {
+      expect(metricRequestProblems(request.body)).toEqual([])
+    }
+    const [first, second] = collector.metrics
+      .filter((metric) => metric.name === 'checkout.clicks')
+      .map((metric) => metric.sum?.dataPoints?.[0])
+    expect(second?.startTimeUnixNano).toBe(first?.timeUnixNano)
+  })
+
   it('gzips a valid request when compression is on', async () => {
     const { som, collector } = setupSom({ compression: 'gzip' })
 

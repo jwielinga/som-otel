@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { OtlpExportError } from '../transport/http-exporter.js'
 import type {
+  OTelJsonInstrumentationScope,
   OTelJsonLogRecord,
   OTelJsonMetric,
   OTelJsonResource,
@@ -77,10 +78,14 @@ function forwardedLogs(
     )
 }
 
+type ForwardedMetric = Forwarded<OTelJsonMetric> & {
+  scope: OTelJsonInstrumentationScope | undefined
+}
+
 function forwardedMetrics(
   forwarded: ForwardedExport[],
   service: string,
-): Array<Forwarded<OTelJsonMetric>> {
+): ForwardedMetric[] {
   return forwarded
     .filter((entry) => entry.path === '/v1/metrics')
     .flatMap(
@@ -89,15 +94,18 @@ function forwardedMetrics(
           entry.body as {
             resourceMetrics?: Array<{
               resource: OTelJsonResource
-              scopeMetrics: Array<{ metrics: OTelJsonMetric[] }>
+              scopeMetrics: Array<{
+                scope?: OTelJsonInstrumentationScope
+                metrics: OTelJsonMetric[]
+              }>
             }>
           }
         ).resourceMetrics ?? [],
     )
     .filter(({ resource }) => serviceName(resource) === service)
     .flatMap(({ resource, scopeMetrics }) =>
-      scopeMetrics.flatMap(({ metrics }) =>
-        metrics.map((item) => ({ resource, item })),
+      scopeMetrics.flatMap(({ scope, metrics }) =>
+        metrics.map((item) => ({ resource, scope, item })),
       ),
     )
 }
@@ -434,6 +442,120 @@ describe.skipIf(!dockerAvailable)('real OpenTelemetry Collector', () => {
     ])
     expect(byName.get('request.duration')?.histogram?.dataPoints).toMatchObject(
       [{ count: '1', sum: 42, bucketCounts: ['0', '1', '0'] }],
+    )
+  })
+
+  it('accepts gzip-compressed metrics', async () => {
+    const service = 'collector-test-metrics-gzip'
+    const { som, diagnostics } = setup(service, { compression: 'gzip' })
+
+    som.meter.createCounter('compressed.clicks').add(2)
+    await som.flush()
+    await collector.waitFor(
+      (forwarded) => forwardedMetrics(forwarded, service).length === 1,
+    )
+
+    expect(diagnostics).toEqual([])
+    expect(
+      forwardedMetrics(collector.forwarded, service)[0]?.item.sum?.dataPoints,
+    ).toMatchObject([{ asInt: '2' }])
+  })
+
+  it('forwards the resource and scope of a metrics request', async () => {
+    const service = 'collector-test-metrics-resource'
+    const { som } = setup(service, {
+      resourceAttributes: { 'deployment.environment.name': 'test' },
+      scope: { name: 'storefront-web', version: '2.1.0' },
+    })
+
+    som.meter.createCounter('checkout.clicks').add(1)
+    await som.flush()
+    await collector.waitFor(
+      (forwarded) => forwardedMetrics(forwarded, service).length === 1,
+    )
+
+    const [forwardedMetric] = forwardedMetrics(collector.forwarded, service)
+    expect(forwardedMetric?.resource.attributes).toEqual(
+      expect.arrayContaining([
+        { key: 'service.version', value: { stringValue: '1.2.3' } },
+        { key: 'deployment.environment.name', value: { stringValue: 'test' } },
+      ]),
+    )
+    expect(forwardedMetric?.scope).toMatchObject({
+      name: 'storefront-web',
+      version: '2.1.0',
+    })
+  })
+
+  it('forwards the attributes of a data point with their types', async () => {
+    const service = 'collector-test-metrics-attributes'
+    const { som, diagnostics } = setup(service)
+
+    som.meter.createCounter('checkout.clicks').add(1, {
+      button: 'pay',
+      attempt: 3,
+      amount: 12.5,
+      retried: false,
+    })
+    await som.flush()
+    await collector.waitFor(
+      (forwarded) => forwardedMetrics(forwarded, service).length === 1,
+    )
+
+    expect(diagnostics).toEqual([])
+    const [point] =
+      forwardedMetrics(collector.forwarded, service)[0]?.item.sum?.dataPoints ??
+      []
+    expect(point?.attributes).toEqual(
+      expect.arrayContaining([
+        { key: 'button', value: { stringValue: 'pay' } },
+        { key: 'attempt', value: { intValue: '3' } },
+        { key: 'amount', value: { doubleValue: 12.5 } },
+        { key: 'retried', value: { boolValue: false } },
+      ]),
+    )
+  })
+
+  it('forwards consecutive windows of a series that meet', async () => {
+    const service = 'collector-test-metrics-windows'
+    const { som, diagnostics } = setup(service)
+    const clicks = som.meter.createCounter('checkout.clicks')
+
+    clicks.add(1)
+    await som.flush()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    clicks.add(1)
+    await som.flush()
+    await collector.waitFor(
+      (forwarded) => forwardedMetrics(forwarded, service).length === 2,
+    )
+
+    expect(diagnostics).toEqual([])
+    const [first, second] = forwardedMetrics(collector.forwarded, service).map(
+      ({ item }) => item.sum?.dataPoints?.[0],
+    )
+    expect(second?.startTimeUnixNano).toBe(first?.timeUnixNano)
+    expect(BigInt(second?.timeUnixNano ?? 0)).toBeGreaterThan(
+      BigInt(second?.startTimeUnixNano ?? 0),
+    )
+  })
+
+  it('reports a wrong metrics endpoint as a failed export', async () => {
+    const { som, diagnostics } = setup('collector-test-metrics-404', {
+      metricsEndpoint: `${collector.url}/v1/not-a-path`,
+    })
+
+    som.meter.createCounter('lost').add(1)
+    const failure = await som.flush().catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(OtlpExportError)
+    expect(failure).toMatchObject({
+      message: expect.stringContaining('OTLP metric request failed: 404'),
+      status: 404,
+      retryable: false,
+    })
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({ type: 'export-failed', signal: 'metrics' }),
     )
   })
 
