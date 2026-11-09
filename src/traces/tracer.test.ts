@@ -69,6 +69,7 @@ describe('traces endpoint', () => {
     const { som, collector } = setup({
       endpoint: 'https://collector.example/ingest',
       tracesEndpoint: 'https://tempo.example/otlp/spans',
+      metricsEndpoint: 'https://collector.example/ingest/metrics',
     })
 
     som.tracer.startSpan('x').end()

@@ -9,7 +9,9 @@ otelcol.receiver.otlp "browser" {
   }
 
   output {
-    logs = [otelcol.exporter.otlphttp.loki.input]
+    logs    = [otelcol.exporter.otlphttp.loki.input]
+    metrics = [otelcol.processor.deltatocumulative.default.input]
+    traces  = [otelcol.exporter.debug.traces.input]
   }
 }
 
@@ -17,4 +19,22 @@ otelcol.exporter.otlphttp "loki" {
   client {
     endpoint = "http://loki:3100/otlp"
   }
+}
+
+// Som sends delta metrics; Prometheus only accepts cumulative ones.
+otelcol.processor.deltatocumulative "default" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.prometheus.input]
+  }
+}
+
+otelcol.exporter.otlphttp "prometheus" {
+  client {
+    endpoint = "http://prometheus:9090/api/v1/otlp"
+  }
+}
+
+// Traces are accepted and discarded; there is no trace backend in this stack.
+otelcol.exporter.debug "traces" {
+  verbosity = "basic"
 }

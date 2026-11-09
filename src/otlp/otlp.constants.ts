@@ -55,6 +55,15 @@ export const OTelStatusCode = {
 export type OTelStatusCode =
   (typeof OTelStatusCode)[keyof typeof OTelStatusCode]
 
+export const OTelAggregationTemporality = {
+  UNSPECIFIED: 0,
+  DELTA: 1,
+  CUMULATIVE: 2,
+} as const
+
+export type OTelAggregationTemporality =
+  (typeof OTelAggregationTemporality)[keyof typeof OTelAggregationTemporality]
+
 export const DEFAULT_SCOPE_NAME = 'som'
 
 export const DEFAULT_LIMITS: OtlpLimits = {

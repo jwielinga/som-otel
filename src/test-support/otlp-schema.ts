@@ -9,6 +9,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// A uint64 decimal string as a number we can compare; anything else is left to the type checks.
+function toBigInt(value: unknown): bigint | undefined {
+  return typeof value === 'string' && /^\d{1,20}$/.test(value)
+    ? BigInt(value)
+    : undefined
+}
+
 function scalar(
   description: string,
   isValid: (value: unknown) => boolean,
@@ -151,7 +158,7 @@ const spanLink = message(
   },
   ['traceId', 'spanId'],
 )
-const span = message(
+const spanFields = message(
   {
     traceId: hexId(32),
     spanId: hexId(16),
@@ -173,6 +180,18 @@ const span = message(
   ['traceId', 'spanId', 'name', 'startTimeUnixNano', 'endTimeUnixNano'],
 )
 
+const span: Check = (value, path, problems) => {
+  spanFields(value, path, problems)
+  if (!isRecord(value)) return
+  const start = toBigInt(value.startTimeUnixNano)
+  const end = toBigInt(value.endTimeUnixNano)
+  if (start !== undefined && end !== undefined && end < start) {
+    problems.push(
+      `${path}: endTimeUnixNano must not be before startTimeUnixNano`,
+    )
+  }
+}
+
 const logRecord = message({
   timeUnixNano: uint64String,
   observedTimeUnixNano: uint64String,
@@ -185,6 +204,244 @@ const logRecord = message({
   traceId: hexId(32),
   spanId: hexId(16),
   eventName: string,
+})
+
+// Exactly one of asInt / asDouble must be set.
+const numberDataPoint: Check = (value, path, problems) => {
+  message({
+    attributes,
+    startTimeUnixNano: uint64String,
+    timeUnixNano: uint64String,
+    asDouble: finiteNumber,
+    asInt: int64String,
+    flags: uint32,
+  })(value, path, problems)
+  if (!isRecord(value)) return
+  if ((value.asInt === undefined) === (value.asDouble === undefined)) {
+    problems.push(`${path}: expected exactly one of asInt or asDouble`)
+  }
+}
+
+// The bucket counts must add up to the count and number one more than the bounds.
+const histogramDataPoint: Check = (value, path, problems) => {
+  message({
+    attributes,
+    startTimeUnixNano: uint64String,
+    timeUnixNano: uint64String,
+    count: uint64String,
+    sum: finiteNumber,
+    bucketCounts: list(uint64String),
+    explicitBounds: list(finiteNumber),
+    min: finiteNumber,
+    max: finiteNumber,
+    flags: uint32,
+  })(value, path, problems)
+  if (!isRecord(value)) return
+
+  const { min, max, sum } = value
+  if (typeof min === 'number' && typeof max === 'number') {
+    if (min > max) problems.push(`${path}: min must not exceed max`)
+
+    // With only non-negative values, the sum lies between count * min and count * max.
+    if (typeof sum === 'number' && min >= 0) {
+      const count = Number(value.count)
+      const slack = 1e-9 * Math.max(1, Math.abs(sum))
+      if (sum < min * count - slack || sum > max * count + slack) {
+        problems.push(
+          `${path}: sum must lie between count * min and count * max`,
+        )
+      }
+    }
+  }
+
+  const counts = value.bucketCounts
+  const bounds = value.explicitBounds
+  if (!Array.isArray(counts) || !Array.isArray(bounds)) return
+  if (counts.length !== bounds.length + 1) {
+    problems.push(`${path}: expected one more bucketCounts than explicitBounds`)
+  }
+  const total = counts.reduce((sum, count) => sum + Number(count), 0)
+  if (String(total) !== value.count) {
+    problems.push(`${path}: bucketCounts must add up to count`)
+  }
+  const ascending = bounds.every(
+    (bound, index) => index === 0 || bound > (bounds[index - 1] as number),
+  )
+  if (!ascending) problems.push(`${path}: explicitBounds must be ascending`)
+}
+
+const temporality = enumNumber(2)
+
+function forEachPoint(
+  points: unknown,
+  path: string,
+  visit: (point: Record<string, unknown>, pointPath: string) => void,
+): void {
+  if (!Array.isArray(points)) return
+  points.forEach((point, index) => {
+    if (isRecord(point)) visit(point, `${path}.dataPoints[${index}]`)
+  })
+}
+
+// Every point needs a time; a delta point also needs a start, and no window runs backwards.
+function checkWindows(
+  points: unknown,
+  path: string,
+  problems: Problems,
+  needsStart: boolean,
+): void {
+  forEachPoint(points, path, (point, pointPath) => {
+    if (point.timeUnixNano === undefined) {
+      problems.push(`${pointPath}.timeUnixNano: required`)
+    }
+    if (needsStart && point.startTimeUnixNano === undefined) {
+      problems.push(
+        `${pointPath}.startTimeUnixNano: required for a delta point`,
+      )
+    }
+    const start = toBigInt(point.startTimeUnixNano)
+    const end = toBigInt(point.timeUnixNano)
+    if (start !== undefined && end !== undefined && start > end) {
+      problems.push(
+        `${pointPath}: startTimeUnixNano must not be after timeUnixNano`,
+      )
+    }
+  })
+}
+
+// A stream is told apart by its attributes, so two points of one metric must differ in them.
+function checkDistinctSeries(
+  points: unknown,
+  path: string,
+  problems: Problems,
+): void {
+  const seen = new Set<string>()
+  forEachPoint(points, path, (point, pointPath) => {
+    const entries = Array.isArray(point.attributes) ? point.attributes : []
+    const id = JSON.stringify(
+      [...entries].sort((a, b) => String(a?.key).localeCompare(String(b?.key))),
+    )
+    if (seen.has(id))
+      problems.push(`${pointPath}: duplicate data point for these attributes`)
+    seen.add(id)
+  })
+}
+
+function checkTemporality(
+  value: Record<string, unknown>,
+  path: string,
+  problems: Problems,
+): boolean {
+  const delta = value.aggregationTemporality === 1
+  if (!delta && value.aggregationTemporality !== 2) {
+    problems.push(
+      `${path}.aggregationTemporality: expected delta (1) or cumulative (2)`,
+    )
+  }
+  return delta
+}
+
+const gauge: Check = (value, path, problems) => {
+  message({ dataPoints: list(numberDataPoint) })(value, path, problems)
+  if (!isRecord(value)) return
+  checkWindows(value.dataPoints, path, problems, false)
+  checkDistinctSeries(value.dataPoints, path, problems)
+}
+
+const sum: Check = (value, path, problems) => {
+  message({
+    dataPoints: list(numberDataPoint),
+    aggregationTemporality: temporality,
+    isMonotonic: boolean,
+  })(value, path, problems)
+  if (!isRecord(value)) return
+
+  checkWindows(
+    value.dataPoints,
+    path,
+    problems,
+    checkTemporality(value, path, problems),
+  )
+  checkDistinctSeries(value.dataPoints, path, problems)
+  if (value.isMonotonic === true) {
+    forEachPoint(value.dataPoints, path, (point, pointPath) => {
+      if (Number(point.asInt ?? point.asDouble) < 0) {
+        problems.push(`${pointPath}: a monotonic sum must not be negative`)
+      }
+    })
+  }
+}
+
+const histogram: Check = (value, path, problems) => {
+  message({
+    dataPoints: list(histogramDataPoint),
+    aggregationTemporality: temporality,
+  })(value, path, problems)
+  if (!isRecord(value)) return
+
+  checkWindows(
+    value.dataPoints,
+    path,
+    problems,
+    checkTemporality(value, path, problems),
+  )
+  checkDistinctSeries(value.dataPoints, path, problems)
+}
+
+const METRIC_DATA = ['gauge', 'sum', 'histogram'] as const
+
+const metric: Check = (value, path, problems) => {
+  message(
+    {
+      name: string,
+      description: string,
+      unit: string,
+      gauge,
+      sum,
+      histogram,
+    },
+    ['name'],
+  )(value, path, problems)
+  if (!isRecord(value)) return
+
+  if (value.name === '')
+    problems.push(`${path}.name: expected a non-empty string`)
+  if (METRIC_DATA.filter((kind) => value[kind] !== undefined).length !== 1) {
+    problems.push(`${path}: expected exactly one of gauge, sum or histogram`)
+  }
+}
+
+// One request must not hold two metrics that a collector would treat as the same stream.
+const scopeMetrics: Check = (value, path, problems) => {
+  message({ scope, metrics: list(metric), schemaUrl: string })(
+    value,
+    path,
+    problems,
+  )
+  if (!isRecord(value) || !Array.isArray(value.metrics)) return
+
+  const seen = new Set<string>()
+  value.metrics.forEach((entry, index) => {
+    if (!isRecord(entry)) return
+    const kind = METRIC_DATA.find((name) => entry[name] !== undefined)
+    const id = JSON.stringify([entry.name, entry.unit ?? '', kind])
+    if (seen.has(id)) {
+      problems.push(
+        `${path}.metrics[${index}]: duplicate metric ${String(entry.name)}`,
+      )
+    }
+    seen.add(id)
+  })
+}
+
+const metricsRequest = message({
+  resourceMetrics: list(
+    message({
+      resource,
+      scopeMetrics: list(scopeMetrics),
+      schemaUrl: string,
+    }),
+  ),
 })
 
 const tracesRequest = message({
@@ -225,4 +482,9 @@ export function traceRequestProblems(request: unknown): Problems {
 // An ExportLogsServiceRequest in OTLP/JSON.
 export function logRequestProblems(request: unknown): Problems {
   return problemsOf(logsRequest, request)
+}
+
+// An ExportMetricsServiceRequest in OTLP/JSON.
+export function metricRequestProblems(request: unknown): Problems {
+  return problemsOf(metricsRequest, request)
 }

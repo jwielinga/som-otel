@@ -15,12 +15,31 @@ services:
       timeout: 3s
       retries: 30
 
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-otlp-receiver
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:9090/-/ready']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
   alloy:
     image: grafana/alloy:v1.10.2
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
       - --storage.path=/var/lib/alloy/data
+      # deltatocumulative and the debug exporter are experimental in Alloy.
+      - --stability.level=experimental
       - /etc/alloy/config.alloy
     ports:
       - '4318:4318'
@@ -29,13 +48,15 @@ services:
     depends_on:
       loki:
         condition: service_healthy
+      prometheus:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:13.2.0
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: som-demo-only
-      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_USERS_ALLOW_SIGN_UP: 'true'
     ports:
       - '3000:3000'
     volumes:
@@ -45,6 +66,8 @@ services:
     depends_on:
       loki:
         condition: service_healthy
+      prometheus:
+        condition: service_healthy
 
   app:
     build:
@@ -53,6 +76,7 @@ services:
     environment:
       VITE_OTLP_ENDPOINT: http://localhost:4318/v1/logs
       LOKI_PROXY_TARGET: http://loki:3100
+      PROMETHEUS_PROXY_TARGET: http://prometheus:9090
     ports:
       - '8080:8080'
     depends_on:
@@ -60,7 +84,10 @@ services:
         condition: service_started
       loki:
         condition: service_healthy
+      prometheus:
+        condition: service_healthy
 
 volumes:
   grafana-data:
   loki-data:
+  prometheus-data:

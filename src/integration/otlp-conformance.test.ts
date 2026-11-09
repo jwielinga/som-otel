@@ -6,6 +6,7 @@ import {
 } from '../test-support/fake-collector.js'
 import {
   logRequestProblems,
+  metricRequestProblems,
   traceRequestProblems,
 } from '../test-support/otlp-schema.js'
 import { setupSom } from '../test-support/som.js'
@@ -501,6 +502,146 @@ describe('logs: input to output', () => {
 })
 
 // A collector rejects a whole request over one malformed id, so these must never be sent.
+describe('metrics: input to output', () => {
+  it('sends a counter, a gauge and a histogram as one valid delta request', async () => {
+    const { som, collector } = setupSom({
+      serviceVersion: '2.1.0',
+      scope: { name: 'storefront-web' },
+      batch: { maxBatchSize: 10, scheduledDelayMs: 60_000 },
+    })
+
+    const clicks = som.meter.createCounter('checkout.clicks', {
+      description: 'Checkout button clicks',
+      unit: '{click}',
+    })
+    clicks.add(1, { button: 'pay' })
+    clicks.add(2, { button: 'pay' })
+    som.meter.createGauge('memory.used', { unit: 'By' }).record(1024)
+    som.meter
+      .createHistogram('request.duration', {
+        unit: 'ms',
+        boundaries: [10, 100],
+      })
+      .record(42, { route: '/cart' })
+    await som.flush()
+
+    const request = sole(collector)
+    expect(request.url).toBe('https://collector.example/v1/metrics')
+    expect(metricRequestProblems(request.body)).toEqual([])
+    expect(request.payload.resourceMetrics).toEqual([
+      {
+        resource: {
+          attributes: [
+            { key: 'service.name', value: { stringValue: 'checkout' } },
+            { key: 'service.version', value: { stringValue: '2.1.0' } },
+          ],
+        },
+        scopeMetrics: [
+          {
+            scope: { name: 'storefront-web' },
+            metrics: [
+              {
+                name: 'checkout.clicks',
+                description: 'Checkout button clicks',
+                unit: '{click}',
+                sum: {
+                  aggregationTemporality: 1,
+                  isMonotonic: true,
+                  dataPoints: [
+                    {
+                      attributes: [
+                        { key: 'button', value: { stringValue: 'pay' } },
+                      ],
+                      startTimeUnixNano: NOW_NANO,
+                      timeUnixNano: NOW_NANO,
+                      asInt: '3',
+                    },
+                  ],
+                },
+              },
+              {
+                name: 'memory.used',
+                unit: 'By',
+                gauge: {
+                  dataPoints: [{ timeUnixNano: NOW_NANO, asInt: '1024' }],
+                },
+              },
+              {
+                name: 'request.duration',
+                unit: 'ms',
+                histogram: {
+                  aggregationTemporality: 1,
+                  dataPoints: [
+                    {
+                      attributes: [
+                        { key: 'route', value: { stringValue: '/cart' } },
+                      ],
+                      startTimeUnixNano: NOW_NANO,
+                      timeUnixNano: NOW_NANO,
+                      count: '1',
+                      sum: 42,
+                      bucketCounts: ['0', '1', '0'],
+                      explicitBounds: [10, 100],
+                      min: 42,
+                      max: 42,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ])
+  })
+
+  it('stays valid with the default scope and no attributes', async () => {
+    const { som, collector } = setupSom()
+
+    som.meter.createUpDownCounter('queue.length').add(-3)
+    await som.flush()
+
+    const request = sole(collector)
+    expect(metricRequestProblems(request.body)).toEqual([])
+    expect(request.payload.resourceMetrics[0]?.scopeMetrics[0]?.scope).toEqual({
+      name: 'som',
+    })
+  })
+
+  it('keeps every request valid across consecutive batches of a series', async () => {
+    const { som, collector } = setupSom()
+    const clicks = som.meter.createCounter('checkout.clicks')
+    const duration = som.meter.createHistogram('request.duration')
+
+    for (const offsetMs of [0, 2000, 4000]) {
+      vi.setSystemTime(new Date(NOW).getTime() + offsetMs)
+      clicks.add(1, { button: 'pay' })
+      duration.record(offsetMs, { route: '/cart' })
+      await som.flush()
+    }
+
+    expect(collector.requests.length).toBeGreaterThan(2)
+    for (const request of collector.requests) {
+      expect(metricRequestProblems(request.body)).toEqual([])
+    }
+    const [first, second] = collector.metrics
+      .filter((metric) => metric.name === 'checkout.clicks')
+      .map((metric) => metric.sum?.dataPoints?.[0])
+    expect(second?.startTimeUnixNano).toBe(first?.timeUnixNano)
+  })
+
+  it('gzips a valid request when compression is on', async () => {
+    const { som, collector } = setupSom({ compression: 'gzip' })
+
+    som.meter.createCounter('x').add(1)
+    await som.flush()
+
+    const request = sole(collector)
+    expect(request.compressed).toBe(true)
+    expect(metricRequestProblems(request.body)).toEqual([])
+  })
+})
+
 describe('malformed trace ids', () => {
   const bad = { traceId: 'xyz', spanId: 'q' }
 

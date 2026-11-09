@@ -13,18 +13,19 @@ import { createSomLogger, type SomLogger } from 'som-otel'
 
 ## `createSom()`
 
-`createSom(options)` returns a `Som` with a logger and a tracer that share one configuration:
+`createSom(options)` returns a `Som` with a logger, a tracer, and a meter that share one configuration:
 
 ```ts
 const som = createSom(options) // SomOptions
 
 som.logger // SomLogger
 som.tracer // SomTracer
+som.meter // SomMeter
 som.flush(): Promise<void>
 som.shutdown(): Promise<void>
 ```
 
-`flush()` and `shutdown()` act on both signals. They wait for both, then reject with the single failure or an `AggregateError` if both fail. `shutdown()` also removes the page listeners. `SomOptions` is `SomLoggerOptions` plus `tracesEndpoint`. See [Tracing](../guides/tracing.md).
+`flush()` and `shutdown()` act on all three signals. They wait for all of them, then reject with the single failure or an `AggregateError` if more than one fails. `shutdown()` also removes the page listeners. `SomOptions` is `SomLoggerOptions` plus `tracesEndpoint` and `metricsEndpoint`. See [Tracing](../guides/tracing.md) and [Metrics](../guides/metrics.md).
 
 ## `SomTracer`
 

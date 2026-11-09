@@ -9,16 +9,17 @@ What Som deliberately does not do, so you can plan around it.
 
 ## Scope
 
-- **Logs and manual traces.** Som sends logs and spans. There are no metrics. Spans are created by hand; there is no automatic instrumentation, no ambient active span, and no sampling beyond following a parent's decision. See [Tracing](./guides/tracing.md).
+- **Logs, manual traces, and manual metrics.** Som sends logs, spans, and metrics. Spans and measurements are created by hand; there is no automatic instrumentation, no ambient active span, and no sampling beyond following a parent's decision. See [Tracing](./guides/tracing.md) and [Metrics](./guides/metrics.md).
+- **Metrics are delta only.** There are no observable (callback-based) instruments, no cumulative temporality, no exponential histograms, no exemplars, no metric views, and no metrics-only factory. A cumulative backend needs the collector's `deltatocumulative` processor.
 - **No automatic capture.** Som does not hook `console`, uncaught errors, network requests, or navigation. See [Recipes](./guides/recipes.md).
 - **JSON over HTTP only.** No protobuf, no gRPC, no WebSocket transports.
-- **One endpoint per signal.** Logs go to one collector URL and spans to another.
+- **One endpoint per signal.** Logs, spans, and metrics each go to their own collector URL.
 
 ## Delivery
 
 - **In-memory queue.** Records stay in memory until the batch threshold, the timer, `flush()`, `shutdown()`, or a page hide triggers an export. They are not saved across page loads.
 - **Retries cover one page session.** A batch that exhausts its retries is lost.
-- **Bounded queue.** Once `maxQueueSize` is reached, new logs are rejected, or the oldest dropped with `overflowStrategy: 'drop-oldest'`.
+- **Bounded queue.** Once `maxQueueSize` is reached, new logs are rejected, or the oldest dropped with `overflowStrategy: 'drop-oldest'`. The same applies to spans and metric measurements.
 - **Unload delivery is best-effort.** It depends on the browser's support for Fetch `keepalive`, and on the 64 KiB body limit. See [Page unload](./guides/page-unload.md).
 - **Sequential batches.** Batches are sent one at a time, so a slow collector delays later batches.
 

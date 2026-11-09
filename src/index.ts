@@ -3,9 +3,17 @@ export { createSom, createSomLogger } from './core/sdk.js'
 export type { SomLogger } from './logs/logger.js'
 export type { Som } from './core/som.js'
 export type { SomTracer } from './traces/tracer.js'
+export type { SomMeter } from './metrics/meter.js'
+export type {
+  Counter,
+  Gauge,
+  Histogram,
+  UpDownCounter,
+} from './metrics/instruments.js'
 export type { Span } from './traces/span.js'
 export { traceContextFromApi } from './traces/trace-context.js'
 export {
+  OTelAggregationTemporality,
   OTelLogRecordFlags,
   OTelSeverityNumber,
   OTelSpanKind,
@@ -15,7 +23,10 @@ export type {
   LogAttributes,
   LogAttributeValue,
   LogOptions,
+  HistogramOptions,
+  InstrumentOptions,
   LogSeverity,
+  MetricAttributes,
   OTelAnyValue,
   OTelApiLike,
   OTelApplicationLog,
@@ -28,22 +39,32 @@ export type {
   OTelJsonArrayValue,
   OTelJsonEntityRef,
   OTelJsonExportLogsServiceRequest,
+  OTelJsonExportMetricsServiceRequest,
   OTelJsonExportTraceServiceRequest,
   OTelJsonInstrumentationScope,
   OTelJsonKeyValue,
+  OTelJsonGauge,
+  OTelJsonHistogram,
+  OTelJsonHistogramDataPoint,
   OTelJsonKeyValueList,
   OTelJsonLogRecord,
   OTelJsonLogsData,
+  OTelJsonMetric,
+  OTelJsonMetricsData,
+  OTelJsonNumberDataPoint,
   OTelJsonResource,
   OTelJsonResourceLogs,
+  OTelJsonResourceMetrics,
   OTelJsonResourceSpans,
   OTelJsonScopeLogs,
+  OTelJsonScopeMetrics,
   OTelJsonScopeSpans,
   OTelJsonSpan,
   OTelJsonSpanEvent,
   OTelJsonSpanId,
   OTelJsonSpanLink,
   OTelJsonStatus,
+  OTelJsonSum,
   OTelJsonTraceId,
   OTelJsonTracesData,
   OTelJsonUint64,

@@ -1,6 +1,6 @@
 # Som
 
-Som is a lightweight browser-side TypeScript npm package for sending OpenTelemetry logs and spans to an OTLP/HTTP collector. It is meant to provide a simple, elegant solution to debug sessions on your web app. It is not for tracking user behaviour or for marketing purposes.
+Som is a lightweight browser-side TypeScript npm package for sending OpenTelemetry logs, spans, and metrics to an OTLP/HTTP collector. It is meant to provide a simple, elegant solution to debug sessions on your web app. It is not for tracking user behaviour or for marketing purposes.
 
 ## Quick Start
 
@@ -20,12 +20,12 @@ await logger.info('User signed in', { userId: 'user-123' })
 
 Som batches logs by default and sends them when it has 20 records or after 5 seconds. Configure `batch.maxBatchSize` and `batch.scheduledDelayMs` to change these thresholds.
 
-To send spans as well, use `createSom`. It returns a logger and a tracer; spans go to `/v1/traces` next to your `/v1/logs` endpoint, or to `tracesEndpoint`:
+To send spans and metrics as well, use `createSom`. It returns a logger, a tracer, and a meter; spans go to `/v1/traces` and metrics to `/v1/metrics` next to your `/v1/logs` endpoint, or to `tracesEndpoint` and `metricsEndpoint`:
 
 ```ts
 import { createSom } from 'som-otel'
 
-const { logger, tracer } = createSom({
+const { logger, tracer, meter } = createSom({
   endpoint: 'https://collector.example.com/v1/logs',
   serviceName: 'web-app',
 })
@@ -33,7 +33,11 @@ const { logger, tracer } = createSom({
 await tracer.trace('checkout', async (span) => {
   await logger.info('Charging card', { orderId: 'order-42' }, { span })
 })
+
+meter.createCounter('checkout.clicks').add(1, { button: 'pay' })
 ```
+
+Metrics are sent with delta temporality; see the [metrics guide](docs/guides/metrics.md).
 
 Som sets the Fetch `keepalive` flag on requests by default so logs can finish sending during page unload; set `keepalive: false` to disable it. Browsers without support ignore it. Som also flushes queued logs on `pagehide` and when the page is hidden.
 

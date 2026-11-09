@@ -1,8 +1,9 @@
 import { ChevronDown } from 'lucide-react'
 
-const example = `import { createSomLogger, OTelSeverityNumber } from 'som-otel'
+const example = `import { createSom, OTelSeverityNumber } from 'som-otel'
 
-const logger = createSomLogger({
+// Spans go to /v1/traces and metrics to /v1/metrics next to the logs URL.
+const { logger, tracer, meter } = createSom({
   endpoint: 'http://localhost:4318/v1/logs',
   serviceName: 'som-demo',
 })
@@ -39,7 +40,19 @@ await logger.logRecord({
   severityText: 'FATAL',
   body: 'TodoList crashed: Cannot read properties of undefined',
   attributes: { 'component.name': 'TodoList' },
-})`
+})
+
+// Wrap work in a span and link logs to it with the span option.
+const span = tracer.startSpan('demo.send-log')
+await logger.info('Inside the span', {}, { span })
+span.end()
+
+// Metrics: every call is queued and sent as delta data points.
+const sent = meter.createCounter('demo.logs.sent', { unit: '{log}' })
+sent.add(1, { severity: 'info' })
+
+const duration = meter.createHistogram('demo.log.send.duration', { unit: 'ms' })
+duration.record(42, { severity: 'info' })`
 
 export function LoggerExample() {
   return (
