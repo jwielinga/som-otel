@@ -1,8 +1,9 @@
-import { createSomLogger } from 'som-otel'
+import { createSom } from 'som-otel'
 
 export const SERVICE_NAME = 'som-demo'
 
-export const logger = createSomLogger({
+export const som = createSom({
+  // Spans and metrics go to /v1/traces and /v1/metrics next to this URL.
   endpoint:
     import.meta.env.VITE_OTLP_ENDPOINT ?? 'http://localhost:4318/v1/logs',
   serviceName: SERVICE_NAME,
@@ -16,4 +17,16 @@ export const logger = createSomLogger({
   onDiagnostic: (event) => {
     if (import.meta.env.DEV) console.debug('[som]', event)
   },
+})
+
+export const { logger, tracer, meter } = som
+
+export const logsSent = meter.createCounter('demo.logs.sent', {
+  description: 'Logs sent from the demo page',
+  unit: '{log}',
+})
+
+export const sendDuration = meter.createHistogram('demo.log.send.duration', {
+  description: 'Time from calling the logger until the export finished',
+  unit: 'ms',
 })

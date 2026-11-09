@@ -1,6 +1,6 @@
 import { OTelSeverityNumber } from 'som-otel'
 import { useRef, useState } from 'react'
-import { logger } from './logger'
+import { logger, logsSent, sendDuration, tracer } from './logger'
 import { useLokiTail } from './loki'
 import { LogControls } from './LogControls'
 import { LogFeeds } from './LogFeeds'
@@ -31,18 +31,28 @@ export function App() {
       ].slice(0, 8),
     )
 
+    const span = tracer.startSpan('demo.send-log', {
+      attributes: { 'log.severity': severity },
+    })
+    const started = performance.now()
+
     try {
       if (severity === 'fatal') {
         // Som has no logger.fatal(); logRecord() takes the OTel FATAL severity number.
+        const { traceId, spanId, traceFlags } = span.spanContext()
         await logger.logRecord({
           severityNumber: OTelSeverityNumber.FATAL,
           severityText: 'FATAL',
           timeUnixNano: BigInt(Date.now()) * 1_000_000n,
           body: message,
           attributes,
+          traceId,
+          spanId,
+          flags: traceFlags,
         })
       } else {
-        await logger[severity](body, attributes)
+        // Passing the span links the log to it.
+        await logger[severity](body, attributes, { span })
       }
       setSent((items) =>
         items.map((item) =>
@@ -50,6 +60,10 @@ export function App() {
         ),
       )
     } catch (error) {
+      span.recordException(
+        error instanceof Error ? error : new Error(String(error)),
+      )
+      span.setStatus({ code: 'error' })
       setSent((items) =>
         items.map((item) =>
           item.id === id
@@ -61,6 +75,10 @@ export function App() {
             : item,
         ),
       )
+    } finally {
+      span.end()
+      logsSent.add(1, { severity })
+      sendDuration.record(performance.now() - started, { severity })
     }
   }
 
@@ -97,7 +115,7 @@ export function App() {
         </a>
         <span className="topbar-note">LOCAL TELEMETRY LAB</span>
         <span className="topbar-end">
-          OTLP/HTTP <i /> LOKI
+          OTLP/HTTP <i /> LOKI + PROMETHEUS
         </span>
       </header>
 
@@ -112,9 +130,9 @@ export function App() {
             <em>Watch it land.</em>
           </h1>
           <p className="lede">
-            Each button sends a real OpenTelemetry log with Som to Alloy. The
-            right column polls Loki, so you see the log after it has been
-            stored.
+            Each button sends a real OpenTelemetry log with Som to Alloy, plus a
+            span and two metrics. The right column polls Loki, so you see the
+            log after it has been stored.
           </p>
           <nav className="dashboard-links" aria-label="Grafana dashboards">
             <a
@@ -130,6 +148,13 @@ export function App() {
               rel="noreferrer"
             >
               Error Overview <span aria-hidden="true">↗</span>
+            </a>
+            <a
+              href={`${GRAFANA}/som-browser-metrics/browser-metrics`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Browser Metrics <span aria-hidden="true">↗</span>
             </a>
           </nav>
         </section>
@@ -152,7 +177,7 @@ export function App() {
       <footer className="footer">
         <span>SOM OTEL EXAMPLE</span>
         <span>
-          APP <b>→</b> ALLOY <b>→</b> LOKI
+          APP <b>→</b> ALLOY <b>→</b> LOKI + PROMETHEUS
         </span>
       </footer>
     </>
