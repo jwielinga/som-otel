@@ -1,5 +1,6 @@
 import type {
   JsonExportResponse,
+  MetricPartialSuccess,
   PartialSuccess,
   RejectedKey,
   Rejection,
@@ -57,6 +58,18 @@ export async function readTracePartialSuccess(
   return (
     rejection && {
       rejectedSpans: rejection.rejected,
+      errorMessage: rejection.errorMessage,
+    }
+  )
+}
+
+export async function readMetricPartialSuccess(
+  response: Response,
+): Promise<MetricPartialSuccess | undefined> {
+  const rejection = await readRejection(response, 'rejectedDataPoints')
+  return (
+    rejection && {
+      rejectedDataPoints: rejection.rejected,
       errorMessage: rejection.errorMessage,
     }
   )

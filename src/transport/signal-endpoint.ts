@@ -15,10 +15,7 @@ export function resolveSignalEndpoint(
     return explicitEndpoint
   }
 
-  const derived = logsEndpoint.replace(
-    LOGS_PATH_PATTERN,
-    `$1/${signal}$2`,
-  )
+  const derived = logsEndpoint.replace(LOGS_PATH_PATTERN, `$1/${signal}$2`)
   if (derived === logsEndpoint) {
     throw new TypeError(
       `${option} is required when endpoint does not end in "/logs".`,

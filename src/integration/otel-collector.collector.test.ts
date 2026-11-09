@@ -367,6 +367,7 @@ describe.skipIf(!dockerAvailable)('real OpenTelemetry Collector', () => {
     const { som, diagnostics } = setup('collector-test-404', {
       endpoint: `${collector.url}/v1/not-a-path`,
       tracesEndpoint: `${collector.url}/v1/not-a-path`,
+      metricsEndpoint: `${collector.url}/v1/not-a-path`,
     })
 
     som.tracer.startSpan('lost').end()

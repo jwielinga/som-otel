@@ -5,19 +5,26 @@ import {
   OtlpHttpExporter,
 } from '../transport/http-exporter.js'
 import { SomLogger } from '../logs/logger.js'
+import { SomMeter } from '../metrics/meter.js'
 import { resolveLimits } from '../otlp/encode-logs.js'
+import { createOtlpMetricsRequest } from '../otlp/encode-metrics.js'
 import { createOtlpTracesRequest } from '../otlp/encode-traces.js'
 import { OtlpTransport } from '../transport/otlp-transport.js'
 import { flushOnPageUnload } from '../transport/page-unload.js'
-import { readTracePartialSuccess } from '../otlp/partial-success.js'
+import {
+  readMetricPartialSuccess,
+  readTracePartialSuccess,
+} from '../otlp/partial-success.js'
 import { detectResourceAttributes } from '../utils/resource.js'
 import { resolveRetryPolicy } from '../transport/retry.js'
 import type {
   BatchExporter,
   Emit,
   LogAttributes,
+  MetricPartialSuccess,
   OtlpLimits,
   OtlpLogRecord,
+  OtlpMeasurement,
   OtlpSpan,
   SomLoggerOptions,
   SomOptions,
@@ -122,6 +129,40 @@ function createTraceExporter(
   })
 }
 
+function createMetricExporter(
+  options: SomOptions,
+  emit: Emit,
+): OtlpTransport<OtlpMeasurement, MetricPartialSuccess> {
+  const resourceAttributes = createResourceAttributes(options)
+  const requestOptions = createRequestOptions(options)
+
+  return new OtlpTransport<OtlpMeasurement, MetricPartialSuccess>({
+    ...createTransportOptions(options),
+    endpoint: resolveSignalEndpoint(
+      'metrics',
+      options.endpoint,
+      options.metricsEndpoint,
+    ),
+    signal: 'metrics',
+    encode: (measurements) =>
+      JSON.stringify(
+        createOtlpMetricsRequest(
+          resourceAttributes,
+          measurements,
+          requestOptions,
+        ),
+      ),
+    readPartialSuccess: readMetricPartialSuccess,
+    onPartialSuccess: ({ rejectedDataPoints, errorMessage }) =>
+      emit({
+        type: 'partial-success',
+        signal: 'metrics',
+        rejectedDataPoints,
+        errorMessage,
+      }),
+  })
+}
+
 function createBatcher<T>(
   options: SomLoggerOptions,
   exporter: BatchExporter<T>,
@@ -184,6 +225,18 @@ function createSpanBatcher(
   )
 }
 
+function createMeasurementBatcher(
+  options: SomOptions,
+  emit: Emit,
+): LogBatcher<OtlpMeasurement> {
+  return createBatcher(
+    options,
+    createMetricExporter(options, emit),
+    emit,
+    'metrics',
+  )
+}
+
 function createLogger(
   options: SomLoggerOptions,
   batcher: LogBatcher<OtlpLogRecord>,
@@ -225,6 +278,7 @@ export function createSom(options: SomOptions): Som {
   const limits = resolveLimits(options.limits)
   const logBatcher = createLogBatcher(options, emit)
   const spanBatcher = createSpanBatcher(options, emit)
+  const measurementBatcher = createMeasurementBatcher(options, emit)
 
   return new Som(
     createLogger(options, logBatcher, limits),
@@ -238,6 +292,16 @@ export function createSom(options: SomOptions): Som {
           recordCount: 1,
         }),
     }),
-    flushOnPageUnload([logBatcher, spanBatcher]),
+    new SomMeter(measurementBatcher, {
+      limits,
+      onError: (error) =>
+        emit({
+          type: 'export-failed',
+          signal: 'metrics',
+          error,
+          recordCount: 1,
+        }),
+    }),
+    flushOnPageUnload([logBatcher, spanBatcher, measurementBatcher]),
   )
 }

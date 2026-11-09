@@ -1,4 +1,4 @@
-import type { OTelJsonSpan, OtlpLogRecord } from '../types.js'
+import type { OTelJsonMetric, OTelJsonSpan, OtlpLogRecord } from '../types.js'
 
 type JsonAttribute = { key: string; value?: unknown }
 
@@ -28,6 +28,15 @@ export type CollectedPayload = {
       spans: OTelJsonSpan[]
     }>
   }>
+  resourceMetrics: Array<{
+    schemaUrl?: string
+    resource: { attributes: JsonAttribute[] }
+    scopeMetrics: Array<{
+      schemaUrl?: string
+      scope: JsonScope
+      metrics: OTelJsonMetric[]
+    }>
+  }>
 }
 
 export type CollectedRequest = {
@@ -43,6 +52,7 @@ export type CollectedRequest = {
   body: unknown
   records: OtlpLogRecord[]
   spans: OTelJsonSpan[]
+  metrics: OTelJsonMetric[]
 }
 
 // A number is a bare status response; an Error is thrown as a network failure.
@@ -87,6 +97,7 @@ function decode(
     const payload: CollectedPayload = {
       resourceLogs: [],
       resourceSpans: [],
+      resourceMetrics: [],
       ...parsed,
     }
     return {
@@ -103,6 +114,9 @@ function decode(
       ),
       spans: payload.resourceSpans.flatMap((resource) =>
         resource.scopeSpans.flatMap((scope) => scope.spans),
+      ),
+      metrics: payload.resourceMetrics.flatMap((resource) =>
+        resource.scopeMetrics.flatMap((scope) => scope.metrics),
       ),
     }
   }
@@ -143,6 +157,10 @@ export class FakeCollector {
 
   get spans(): OTelJsonSpan[] {
     return this.requests.flatMap((request) => request.spans)
+  }
+
+  get metrics(): OTelJsonMetric[] {
+    return this.requests.flatMap((request) => request.metrics)
   }
 
   // String bodies of every received record, in arrival order.

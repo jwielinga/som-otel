@@ -1,4 +1,5 @@
 import type {
+  OTelAggregationTemporality,
   OTelSeverityNumber,
   OTelSpanKind,
   OTelStatusCode,
@@ -223,6 +224,46 @@ export type OTelJsonTracesData = {
 
 export type OTelJsonExportTraceServiceRequest = OTelJsonTracesData
 
+export type OTelJsonNumberDataPoint = {
+  attributes?: OTelJsonKeyValue[]
+  startTimeUnixNano?: OTelJsonUint64
+  timeUnixNano?: OTelJsonUint64
+  // Exactly one of asInt (int64 string) or asDouble is set.
+  asInt?: string
+  asDouble?: number
+}
+
+export type OTelJsonSum = {
+  dataPoints?: OTelJsonNumberDataPoint[]
+  aggregationTemporality?: OTelAggregationTemporality
+  isMonotonic?: boolean
+}
+
+export type OTelJsonMetric = {
+  name?: string
+  description?: string
+  unit?: string
+  sum?: OTelJsonSum
+}
+
+export type OTelJsonScopeMetrics = {
+  scope?: OTelJsonInstrumentationScope
+  metrics?: OTelJsonMetric[]
+  schemaUrl?: string
+}
+
+export type OTelJsonResourceMetrics = {
+  resource?: OTelJsonResource
+  scopeMetrics?: OTelJsonScopeMetrics[]
+  schemaUrl?: string
+}
+
+export type OTelJsonMetricsData = {
+  resourceMetrics?: OTelJsonResourceMetrics[]
+}
+
+export type OTelJsonExportMetricsServiceRequest = OTelJsonMetricsData
+
 // ---- Public SDK ----
 
 export type LogSeverity = 'trace' | 'debug' | 'info' | 'warn' | 'error'
@@ -374,6 +415,8 @@ export type SomLoggerOptions = {
 export type SomOptions = SomLoggerOptions & {
   // Full traces URL. Default: `endpoint` with its trailing /logs replaced by /traces.
   tracesEndpoint?: string
+  // Full metrics URL. Default: `endpoint` with its trailing /logs replaced by /metrics.
+  metricsEndpoint?: string
 }
 
 // ---- OTLP encoding ----
@@ -381,6 +424,29 @@ export type SomOptions = SomLoggerOptions & {
 export type OtlpLogRecord = OTelJsonLogRecord
 
 export type OtlpSpan = OTelJsonSpan
+
+// Attribute values on a measurement follow the same rules as log attributes.
+export type MetricAttributes = LogAttributes
+
+export type InstrumentOptions = {
+  description?: string
+  unit?: string
+}
+
+export type MetricKind = 'counter'
+
+export type MetricDescriptor = InstrumentOptions & {
+  name: string
+  kind: MetricKind
+}
+
+// One queued instrument call; the encoder collapses a batch of these into data points.
+export type OtlpMeasurement = {
+  descriptor: MetricDescriptor
+  value: number
+  timeUnixNano: bigint
+  attributes: OTelJsonKeyValue[]
+}
 
 export type OtlpLimits = Required<SomLoggerLimits>
 
@@ -412,16 +478,23 @@ export type TracePartialSuccess = {
   errorMessage?: string
 }
 
+export type MetricPartialSuccess = {
+  rejectedDataPoints: number
+  errorMessage?: string
+}
+
 export type JsonExportResponse = {
   partialSuccess?: {
     // OTLP/JSON encodes int64 as a string.
     rejectedLogRecords?: string | number
     rejectedSpans?: string | number
+    rejectedDataPoints?: string | number
     errorMessage?: string
   }
 }
 
-export type RejectedKey = 'rejectedLogRecords' | 'rejectedSpans'
+export type RejectedKey =
+  'rejectedLogRecords' | 'rejectedSpans' | 'rejectedDataPoints'
 
 export type Rejection = { rejected: number; errorMessage: string | undefined }
 
@@ -489,6 +562,13 @@ export type Unloadable = { flushOnUnload(): Promise<void> }
 export type SomLoggerInit = {
   limits?: OtlpLimits
   traceContext?: TraceContextProvider
+  onShutdown?: () => void
+}
+
+export type SomMeterInit = {
+  limits?: OtlpLimits
+  // Called when a measurement cannot be encoded; instrument calls themselves never throw.
+  onError?: (error: unknown) => void
   onShutdown?: () => void
 }
 
