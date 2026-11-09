@@ -187,6 +187,87 @@ const logRecord = message({
   eventName: string,
 })
 
+// Exactly one of asInt / asDouble must be set.
+const numberDataPoint: Check = (value, path, problems) => {
+  message({
+    attributes,
+    startTimeUnixNano: uint64String,
+    timeUnixNano: uint64String,
+    asDouble: finiteNumber,
+    asInt: int64String,
+    flags: uint32,
+  })(value, path, problems)
+  if (!isRecord(value)) return
+  if ((value.asInt === undefined) === (value.asDouble === undefined)) {
+    problems.push(`${path}: expected exactly one of asInt or asDouble`)
+  }
+}
+
+// The bucket counts must add up to the count and number one more than the bounds.
+const histogramDataPoint: Check = (value, path, problems) => {
+  message({
+    attributes,
+    startTimeUnixNano: uint64String,
+    timeUnixNano: uint64String,
+    count: uint64String,
+    sum: finiteNumber,
+    bucketCounts: list(uint64String),
+    explicitBounds: list(finiteNumber),
+    min: finiteNumber,
+    max: finiteNumber,
+    flags: uint32,
+  })(value, path, problems)
+  if (!isRecord(value)) return
+
+  const counts = value.bucketCounts
+  const bounds = value.explicitBounds
+  if (!Array.isArray(counts) || !Array.isArray(bounds)) return
+  if (counts.length !== bounds.length + 1) {
+    problems.push(`${path}: expected one more bucketCounts than explicitBounds`)
+  }
+  const total = counts.reduce((sum, count) => sum + Number(count), 0)
+  if (String(total) !== value.count) {
+    problems.push(`${path}: bucketCounts must add up to count`)
+  }
+  const ascending = bounds.every(
+    (bound, index) => index === 0 || bound > (bounds[index - 1] as number),
+  )
+  if (!ascending) problems.push(`${path}: explicitBounds must be ascending`)
+}
+
+const temporality = enumNumber(2)
+
+const metric = message(
+  {
+    name: string,
+    description: string,
+    unit: string,
+    gauge: message({ dataPoints: list(numberDataPoint) }),
+    sum: message({
+      dataPoints: list(numberDataPoint),
+      aggregationTemporality: temporality,
+      isMonotonic: boolean,
+    }),
+    histogram: message({
+      dataPoints: list(histogramDataPoint),
+      aggregationTemporality: temporality,
+    }),
+  },
+  ['name'],
+)
+
+const metricsRequest = message({
+  resourceMetrics: list(
+    message({
+      resource,
+      scopeMetrics: list(
+        message({ scope, metrics: list(metric), schemaUrl: string }),
+      ),
+      schemaUrl: string,
+    }),
+  ),
+})
+
 const tracesRequest = message({
   resourceSpans: list(
     message({
@@ -225,4 +306,9 @@ export function traceRequestProblems(request: unknown): Problems {
 // An ExportLogsServiceRequest in OTLP/JSON.
 export function logRequestProblems(request: unknown): Problems {
   return problemsOf(logsRequest, request)
+}
+
+// An ExportMetricsServiceRequest in OTLP/JSON.
+export function metricRequestProblems(request: unknown): Problems {
+  return problemsOf(metricsRequest, request)
 }
