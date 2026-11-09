@@ -14,17 +14,18 @@ import type { SomLoggerOptions } from 'som-otel'
 
 ## Values
 
-| Export                | Description                                                                                                                                    |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `createSomLogger`     | Factory returning a `SomLogger`.                                                                                                               |
-| `createSom`           | Factory returning a `Som` with a `logger`, a `tracer`, and a `meter`. See [Tracing](../guides/tracing.md) and [Metrics](../guides/metrics.md). |
-| `OtlpExportError`     | Error thrown for export failures, with `status`, `retryable`, and `retryAfterMs`.                                                              |
-| `OtlpHttpExporter`    | Low-level transport. See [Logger API](./logger-api.md#otlphttpexporter).                                                                       |
-| `traceContextFromApi` | Adapter for `@opentelemetry/api`. See [Trace correlation](../guides/trace-correlation.md).                                                     |
-| `OTelSeverityNumber`  | Constant object with the OTel severity numbers (`UNSPECIFIED` to `FATAL4`).                                                                    |
-| `OTelLogRecordFlags`  | Constants for log record flags (`TRACE_FLAGS_MASK`).                                                                                           |
-| `OTelSpanKind`        | Constant object with the OTel span kind numbers (`UNSPECIFIED` to `CONSUMER`).                                                                 |
-| `OTelStatusCode`      | Constant object with the OTel status codes (`UNSET`, `OK`, `ERROR`).                                                                           |
+| Export                       | Description                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createSomLogger`            | Factory returning a `SomLogger`.                                                                                                               |
+| `createSom`                  | Factory returning a `Som` with a `logger`, a `tracer`, and a `meter`. See [Tracing](../guides/tracing.md) and [Metrics](../guides/metrics.md). |
+| `OtlpExportError`            | Error thrown for export failures, with `status`, `retryable`, and `retryAfterMs`.                                                              |
+| `OtlpHttpExporter`           | Low-level transport. See [Logger API](./logger-api.md#otlphttpexporter).                                                                       |
+| `traceContextFromApi`        | Adapter for `@opentelemetry/api`. See [Trace correlation](../guides/trace-correlation.md).                                                     |
+| `OTelSeverityNumber`         | Constant object with the OTel severity numbers (`UNSPECIFIED` to `FATAL4`).                                                                    |
+| `OTelLogRecordFlags`         | Constants for log record flags (`TRACE_FLAGS_MASK`).                                                                                           |
+| `OTelSpanKind`               | Constant object with the OTel span kind numbers (`UNSPECIFIED` to `CONSUMER`).                                                                 |
+| `OTelStatusCode`             | Constant object with the OTel status codes (`UNSET`, `OK`, `ERROR`).                                                                           |
+| `OTelAggregationTemporality` | Constant object with the OTel aggregation temporalities (`UNSPECIFIED`, `DELTA`, `CUMULATIVE`).                                                |
 
 ### `OTelSeverityNumber`
 
@@ -51,9 +52,11 @@ The type `OTelSeverityNumber` is the union of these numbers.
 | `Counter`                 | The type `meter.createCounter` returns.                                |
 | `UpDownCounter`           | The type `meter.createUpDownCounter` returns.                          |
 | `Histogram`               | The type `meter.createHistogram` returns.                              |
-| `Gauge`                   | The type `meter.createGauge` returns.                                  |     | `InstrumentOptions` | `description` and `unit` of an instrument. |
+| `Gauge`                   | The type `meter.createGauge` returns.                                  |
+| `InstrumentOptions`       | `description` and `unit` of an instrument.                             |
 | `HistogramOptions`        | `InstrumentOptions` plus `boundaries`.                                 |
-| `MetricAttributes`        | The attributes of an instrument call.                                  |     | `Span`              | The type `startSpan` returns.              |
+| `MetricAttributes`        | The attributes of an instrument call.                                  |
+| `Span`                    | The type `startSpan` returns.                                          |
 | `SomLoggerOptions`        | The argument of `createSomLogger`.                                     |
 | `SomOptions`              | The argument of `createSom`.                                           |
 | `SpanOptions`             | The options of `startSpan` and `trace`.                                |
