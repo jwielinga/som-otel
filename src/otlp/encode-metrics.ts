@@ -38,6 +38,7 @@ type Series = {
   end: bigint
   total: number
   allIntegers: boolean
+  last: number
 }
 
 // Attribute order must not split a series.
@@ -82,6 +83,9 @@ function collapseSeries(measurements: readonly OtlpMeasurement[]): Series[] {
     ),
     total: group.reduce((sum, m) => sum + m.value, 0),
     allIntegers: group.every((m) => Number.isInteger(m.value)),
+    last: group.reduce((latest, m) =>
+      m.timeUnixNano >= latest.timeUnixNano ? m : latest,
+    ).value,
   }))
 }
 
@@ -98,23 +102,39 @@ function encodeMetric(
   descriptor: MetricDescriptor,
   measurements: readonly OtlpMeasurement[],
 ): OTelJsonMetric {
-  const dataPoints = collapseSeries(measurements).map(
-    (series): OTelJsonNumberDataPoint => ({
-      attributes: series.attributes.length > 0 ? series.attributes : undefined,
-      startTimeUnixNano: series.start.toString(),
-      timeUnixNano: series.end.toString(),
-      ...numberValue(series.total, series.allIntegers),
-    }),
-  )
-
-  return {
+  const series = collapseSeries(measurements)
+  const identity = {
     name: descriptor.name,
     description: descriptor.description,
     unit: descriptor.unit,
+  }
+  const attributesOf = (s: Series) =>
+    s.attributes.length > 0 ? s.attributes : undefined
+
+  if (descriptor.kind === 'gauge') {
+    return {
+      ...identity,
+      gauge: {
+        dataPoints: series.map((s): OTelJsonNumberDataPoint => ({
+          attributes: attributesOf(s),
+          timeUnixNano: s.end.toString(),
+          ...numberValue(s.last, Number.isInteger(s.last)),
+        })),
+      },
+    }
+  }
+
+  return {
+    ...identity,
     sum: {
-      dataPoints,
+      dataPoints: series.map((s): OTelJsonNumberDataPoint => ({
+        attributes: attributesOf(s),
+        startTimeUnixNano: s.start.toString(),
+        timeUnixNano: s.end.toString(),
+        ...numberValue(s.total, s.allIntegers),
+      })),
       aggregationTemporality: OTelAggregationTemporality.DELTA,
-      isMonotonic: true,
+      isMonotonic: descriptor.kind === 'counter',
     },
   }
 }

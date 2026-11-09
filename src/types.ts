@@ -239,11 +239,16 @@ export type OTelJsonSum = {
   isMonotonic?: boolean
 }
 
+export type OTelJsonGauge = {
+  dataPoints?: OTelJsonNumberDataPoint[]
+}
+
 export type OTelJsonMetric = {
   name?: string
   description?: string
   unit?: string
   sum?: OTelJsonSum
+  gauge?: OTelJsonGauge
 }
 
 export type OTelJsonScopeMetrics = {
@@ -433,7 +438,7 @@ export type InstrumentOptions = {
   unit?: string
 }
 
-export type MetricKind = 'counter'
+export type MetricKind = 'counter' | 'up-down-counter' | 'gauge'
 
 export type MetricDescriptor = InstrumentOptions & {
   name: string

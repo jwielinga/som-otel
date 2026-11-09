@@ -9,7 +9,8 @@ import type {
   OtlpMeasurement,
   SomMeterInit,
 } from '../types.js'
-import { Counter } from './instruments.js'
+import { Counter, Gauge, UpDownCounter } from './instruments.js'
+import type { Recorder } from './instruments.js'
 
 export class SomMeter {
   private readonly batcher: LogBatcher<OtlpMeasurement>
@@ -34,10 +35,24 @@ export class SomMeter {
   }
 
   createCounter(name: string, options: InstrumentOptions = {}): Counter {
-    const descriptor: MetricDescriptor = { ...options, name, kind: 'counter' }
-    return new Counter((value, attributes) =>
-      this.measure(descriptor, value, attributes),
+    return new Counter(this.recorder({ ...options, name, kind: 'counter' }))
+  }
+
+  createUpDownCounter(
+    name: string,
+    options: InstrumentOptions = {},
+  ): UpDownCounter {
+    return new UpDownCounter(
+      this.recorder({ ...options, name, kind: 'up-down-counter' }),
     )
+  }
+
+  createGauge(name: string, options: InstrumentOptions = {}): Gauge {
+    return new Gauge(this.recorder({ ...options, name, kind: 'gauge' }))
+  }
+
+  private recorder(descriptor: MetricDescriptor): Recorder {
+    return (value, attributes) => this.measure(descriptor, value, attributes)
   }
 
   flush(): Promise<void> {

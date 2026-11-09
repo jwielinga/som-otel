@@ -204,3 +204,76 @@ describe('counter metrics', () => {
     ])
   })
 })
+
+describe('up-down counter metrics', () => {
+  it('sends a non-monotonic delta sum that can go down', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+    const queue = som.meter.createUpDownCounter('queue.length', {
+      unit: '{item}',
+    })
+
+    queue.add(5)
+    queue.add(-7)
+    await som.flush()
+
+    expect(collector.metrics[0]).toMatchObject({
+      name: 'queue.length',
+      unit: '{item}',
+      sum: { aggregationTemporality: DELTA, isMonotonic: false },
+    })
+    expect(collector.metrics[0]?.sum?.dataPoints).toMatchObject([
+      { asInt: '-2' },
+    ])
+  })
+})
+
+describe('gauge metrics', () => {
+  it('sends only the last value of a batch per attribute set', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+    const memory = som.meter.createGauge('memory.used', { unit: 'By' })
+
+    memory.record(10, { tab: 'a' })
+    memory.record(30, { tab: 'a' })
+    memory.record(20, { tab: 'b' })
+    await som.flush()
+
+    expect(collector.metrics).toHaveLength(1)
+    expect(collector.metrics[0]?.sum).toBeUndefined()
+    const points = collector.metrics[0]?.gauge?.dataPoints ?? []
+    expect(
+      points.map((point) => [
+        attributeOf(point.attributes, 'tab'),
+        point.asInt,
+      ]),
+    ).toEqual([
+      [{ stringValue: 'a' }, '30'],
+      [{ stringValue: 'b' }, '20'],
+    ])
+  })
+
+  it('sends fractional values as doubles and omits the start time', async () => {
+    const { som, collector } = setup()
+
+    som.meter.createGauge('cpu.load').record(0.75)
+    await som.flush()
+
+    const [point] = collector.metrics[0]?.gauge?.dataPoints ?? []
+    expect(point).toMatchObject({ asDouble: 0.75 })
+    expect(point?.startTimeUnixNano).toBeUndefined()
+    expect(point?.timeUnixNano).toMatch(/^\d+$/)
+  })
+})
+
+describe('instruments of different kinds', () => {
+  it('keeps a counter and a gauge with the same name apart', async () => {
+    const { som, collector } = setup({ batch: { maxBatchSize: 10 } })
+
+    som.meter.createCounter('x').add(1)
+    som.meter.createGauge('x').record(1)
+    await som.flush()
+
+    expect(
+      collector.metrics.map((metric) => Object.keys(metric).includes('gauge')),
+    ).toEqual([false, true])
+  })
+})
