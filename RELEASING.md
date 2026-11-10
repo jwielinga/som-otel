@@ -17,6 +17,8 @@ Releases are created by semantic-release after a quality check on `main`. Conven
 
 The release workflow runs only on pushes to `main` and waits for the reusable Quality workflow. A `fix:` commit triggers a patch release; `feat:` triggers a minor release; a breaking-change marker triggers a major release. Commits with other types do not release. Do not manually edit `package.json`'s version; semantic-release owns published versions and Git tags.
 
+Each release is also published to GitHub Packages as `@<owner>/som-otel` by `scripts/publish-github-packages.mjs`, using the job's `GITHUB_TOKEN` (`packages: write`). GitHub Packages requires the scoped name, so the script publishes a staged copy with the renamed `package.json`. The `repository` field links the package to this repo. It has no provenance; only the npm publish does.
+
 The first release has no prior semantic-release tag to use as a baseline, so review the existing Conventional Commit history before merging the first release-triggering change. Keep `main` protected so unreviewed changes cannot alter the publishing workflow.
 
 ## Pull Request Security
