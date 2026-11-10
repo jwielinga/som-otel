@@ -32,22 +32,14 @@ yarn add som-otel
 ```
 
   </TabItem>
-</Tabs>
-
-### From GitHub Packages
-
-The same build is also published to GitHub Packages as `@jwielinga/som-otel`. GitHub Packages needs a scoped name and an authenticated registry, even for public packages. Create a personal access token (classic) with the `read:packages` scope, then add to your `.npmrc`:
-
-```ini title=".npmrc"
-@jwielinga:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
+  <TabItem value="bun" label="bun">
 
 ```sh
-npm install @jwielinga/som-otel
+bun add som-otel
 ```
 
-Import from `@jwielinga/som-otel` instead of `som-otel`. Prefer the npm package unless you must use GitHub's registry.
+  </TabItem>
+</Tabs>
 
 Som ships ES module, CommonJS, and browser (IIFE) builds with bundled TypeScript types. It needs a runtime with the Fetch API, which every current browser provides, and also runs on current Node.js releases when you want to send logs from scripts or tests.
 
